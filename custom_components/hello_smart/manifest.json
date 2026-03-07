@@ -1,0 +1,10 @@
+{
+  "domain": "hello_smart",
+  "name": "Hello Smart",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://github.com/",
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "version": "0.1.0"
+}

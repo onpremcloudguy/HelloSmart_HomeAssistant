@@ -1,0 +1,13 @@
+homeassistant:
+  name: Hello Smart Dev
+  unit_system: metric
+  time_zone: Australia/Sydney
+
+# Debug logging for the integration
+logger:
+  default: warning
+  logs:
+    custom_components.hello_smart: debug
+
+# Minimal default config
+default_config:

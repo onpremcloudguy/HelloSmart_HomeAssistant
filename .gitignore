@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local debug configs (contains credentials)
+LocalDebugConfig/
+
+# APK files
+Hello_Smart_APK/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Logs
+*.log
+*.tmp
+
+# Docker HA runtime state (keep configuration.yaml)
+docker/ha-config/.storage/
+docker/ha-config/.cloud/
+docker/ha-config/.cache/
+docker/ha-config/.HA_VERSION
+docker/ha-config/.ha_run.lock
+docker/ha-config/home-assistant_v2.db*
+docker/ha-config/home-assistant.log*
+docker/ha-config/tts/
+docker/ha-config/backups/
+docker/ha-config/blueprints/
+docker/ha-config/deps/
+docker/ha-config/custom_components/

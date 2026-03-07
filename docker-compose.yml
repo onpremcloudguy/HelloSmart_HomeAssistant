@@ -1,0 +1,26 @@
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: ha-dev
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+    volumes:
+      # Persistent HA config
+      - ./docker/ha-config:/config
+      # Mount the integration source (live-reload with HA restart)
+      - ./custom_components/hello_smart:/config/custom_components/hello_smart:ro
+    environment:
+      - TZ=Australia/Sydney
+
+  # Standalone API debug runner — no HA dependency
+  debug:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.debug
+    container_name: smart-debug
+    profiles: ["debug"]
+    environment:
+      - SMART_EMAIL=${SMART_EMAIL:-}
+      - SMART_PASSWORD=${SMART_PASSWORD:-}
+      - SMART_REGION=${SMART_REGION:-INTL}
