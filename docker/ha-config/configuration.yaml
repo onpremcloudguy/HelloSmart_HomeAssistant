@@ -8,6 +8,7 @@ logger:
   default: warning
   logs:
     custom_components.hello_smart: debug
+    homeassistant.helpers.update_coordinator: debug
 
 # Minimal default config
 default_config:

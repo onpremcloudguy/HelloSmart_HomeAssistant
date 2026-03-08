@@ -14,7 +14,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import SmartAPI, SmartAPIError, TokenExpiredError
+from .api import SmartAPI, TokenExpiredError
 from .auth import AuthenticationError, async_login_eu, async_login_intl
 from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
 from .models import Account, AuthState, OTAInfo, Region, VehicleData
@@ -110,7 +110,7 @@ class SmartDataCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
             account = self._account
             assert account is not None
             return await self._async_fetch_all_vehicles(account)
-        except SmartAPIError as err:
+        except Exception as err:
             raise UpdateFailed(f"API error: {err}") from err
 
     async def _async_fetch_all_vehicles(
@@ -132,6 +132,10 @@ class SmartDataCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
                 manufacturer="Smart",
                 model=vehicle.model_name or "Smart Vehicle",
                 name=vehicle.model_name or f"Smart {vin[-6:]}",
+                model_id=vehicle.series_code or None,
+                hw_version=vehicle.model_year or None,
+                serial_number=vin,
+                suggested_area="Garage",
             )
 
             try:
@@ -148,17 +152,136 @@ class SmartDataCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
                             status.charge_current = float(soc_data["chargeIAct"])
                         if soc_data.get("timeToFullyCharged"):
                             status.time_to_full = int(soc_data["timeToFullyCharged"])
-                except SmartAPIError:
-                    _LOGGER.debug("SOC detail unavailable for %s", vin[:6] + "...")
+                except Exception:
+                    _LOGGER.debug("SOC detail unavailable for %s", vin[:6] + "...", exc_info=True)
 
                 # Fetch OTA info
                 ota = None
                 try:
                     ota = await self._api.async_get_ota_info(account, vin)
-                except SmartAPIError:
-                    _LOGGER.debug("OTA info unavailable for %s", vin[:6] + "...")
+                except Exception:
+                    _LOGGER.debug("OTA info unavailable for %s", vin[:6] + "...", exc_info=True)
 
-            except SmartAPIError as err:
+                # Fetch vehicle running state
+                running_state = None
+                try:
+                    running_state = await self._api.async_get_vehicle_state(account, vin)
+                except Exception:
+                    _LOGGER.debug("Vehicle state unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch telematics
+                telematics = None
+                try:
+                    telematics = await self._api.async_get_telematics(account, vin)
+                except Exception:
+                    _LOGGER.debug("Telematics unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch diagnostic history
+                diagnostic = None
+                try:
+                    diagnostic = await self._api.async_get_diagnostic_history(account, vin)
+                except Exception:
+                    _LOGGER.debug("Diagnostics unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch charging reservation
+                charging_reservation = None
+                try:
+                    charging_reservation = await self._api.async_get_charging_reservation(account, vin)
+                except Exception:
+                    _LOGGER.debug("Charging reservation unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch climate schedule
+                climate_schedule = None
+                try:
+                    climate_schedule = await self._api.async_get_climate_schedule(account, vin)
+                except Exception:
+                    _LOGGER.debug("Climate schedule unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch fridge status
+                fridge = None
+                try:
+                    fridge = await self._api.async_get_fridge_status(account, vin)
+                except Exception:
+                    _LOGGER.debug("Fridge status unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch locker status
+                locker = None
+                try:
+                    locker = await self._api.async_get_locker_status(account, vin)
+                except Exception:
+                    _LOGGER.debug("Locker status unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch VTM settings (no VIN param — uses session)
+                vtm = None
+                try:
+                    vtm = await self._api.async_get_vtm_settings(account)
+                except Exception:
+                    _LOGGER.debug("VTM settings unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch fragrance details
+                fragrance = None
+                try:
+                    fragrance = await self._api.async_get_fragrance(account, vin)
+                except Exception:
+                    _LOGGER.debug("Fragrance unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch trip journal
+                last_trip = None
+                try:
+                    last_trip = await self._api.async_get_trip_journal(account, vin)
+                except Exception:
+                    _LOGGER.debug("Trip journal unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch total distance
+                total_distance = None
+                try:
+                    total_distance = await self._api.async_get_total_distance(account, vin)
+                except Exception:
+                    _LOGGER.debug("Total distance unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch geofences
+                geofence = None
+                try:
+                    geofence = await self._api.async_get_geofences(account, vin)
+                except Exception:
+                    _LOGGER.debug("Geofences unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch capabilities
+                capabilities = None
+                try:
+                    capabilities = await self._api.async_get_capabilities(account, vin)
+                except Exception:
+                    _LOGGER.debug("Capabilities unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch energy ranking
+                energy_ranking = None
+                try:
+                    energy_ranking = await self._api.async_get_energy_ranking(account, vin)
+                except Exception:
+                    _LOGGER.debug("Energy ranking unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch locker secret status
+                locker_secret = None
+                try:
+                    locker_secret = await self._api.async_get_locker_secret(account, vin)
+                except Exception:
+                    _LOGGER.debug("Locker secret unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch FOTA notification
+                fota_notification = None
+                try:
+                    fota_notification = await self._api.async_get_fota_notification(account)
+                except Exception:
+                    _LOGGER.debug("FOTA notification unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Fetch plant number for DeviceInfo
+                plant_no = None
+                try:
+                    plant_no = await self._api.async_get_plant_no(account, vin)
+                except Exception:
+                    _LOGGER.debug("Plant number unavailable for %s", vin[:6] + "...", exc_info=True)
+
+            except Exception as err:
                 _LOGGER.warning(
                     "Failed to fetch status for vehicle %s: %s",
                     vin[:6] + "...",
@@ -167,8 +290,40 @@ class SmartDataCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
                 result[vin] = VehicleData(vehicle=vehicle)
                 continue
 
+            # Update DeviceInfo with sw_version from OTA and configuration_url
+            if ota and ota.current_version:
+                self._device_infos[vin] = DeviceInfo(
+                    identifiers={(DOMAIN, vin)},
+                    manufacturer="Smart",
+                    model=vehicle.model_name or "Smart Vehicle",
+                    name=vehicle.model_name or f"Smart {vin[-6:]}",
+                    model_id=vehicle.series_code or None,
+                    hw_version=vehicle.model_year or None,
+                    sw_version=ota.current_version,
+                    serial_number=vin,
+                    suggested_area="Garage",
+                )
+
             result[vin] = VehicleData(
-                vehicle=vehicle, status=status, ota=ota or OTAInfo()
+                vehicle=vehicle,
+                status=status,
+                ota=ota or OTAInfo(),
+                running_state=running_state,
+                telematics=telematics,
+                diagnostic=diagnostic,
+                charging_reservation=charging_reservation,
+                climate_schedule=climate_schedule,
+                fridge=fridge,
+                locker=locker,
+                vtm=vtm,
+                fragrance=fragrance,
+                last_trip=last_trip,
+                total_distance=total_distance,
+                geofence=geofence,
+                capabilities=capabilities,
+                energy_ranking=energy_ranking,
+                locker_secret=locker_secret,
+                fota_notification=fota_notification,
             )
 
         _LOGGER.debug("Updated data for %d vehicle(s)", len(result))

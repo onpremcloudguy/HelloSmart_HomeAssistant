@@ -7,7 +7,7 @@ import base64
 DOMAIN = "hello_smart"
 
 # --- Default configuration ---
-DEFAULT_SCAN_INTERVAL = 300  # seconds (5 minutes)
+DEFAULT_SCAN_INTERVAL = 60  # seconds
 MIN_SCAN_INTERVAL = 60  # seconds
 
 # --- API Base URLs ---
@@ -83,6 +83,9 @@ SENSITIVE_FIELDS: tuple[str, ...] = (
     "authCode",
     "api_client_id",
     "clientId",
+    "imei",
+    "locker_secret",
+    "secretSet",
 )
 
 # --- API URL paths ---
