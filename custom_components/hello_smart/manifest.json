@@ -1,9 +1,10 @@
 {
   "domain": "hello_smart",
   "name": "Hello Smart",
-  "codeowners": [],
+  "codeowners": ["@onpremcloudguy"],
   "config_flow": true,
-  "documentation": "https://github.com/",
+  "documentation": "https://github.com/onpremcloudguy/HelloSmart_HomeAssistant",
+  "issue_tracker": "https://github.com/onpremcloudguy/HelloSmart_HomeAssistant/issues",
   "iot_class": "cloud_polling",
   "requirements": [],
   "version": "0.3.0"

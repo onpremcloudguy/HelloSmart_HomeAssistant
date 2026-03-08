@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] — 2026-03-09
+
+### Feature: HACS Packaging (`005-hacs-packaging`)
+
+Added all required metadata and CI workflows for HACS (Home Assistant Community Store) compatibility. Users can now install the integration via HACS custom repository.
+
+### Added
+
+- **hacs.json** — HACS store configuration with integration name and minimum Home Assistant version (2024.1.0)
+- **LICENSE** — MIT license file (required by HACS)
+- **CI workflow** (`.github/workflows/validate.yml`) — automated HACS validation (`hacs/action`) and Home Assistant manifest validation (`hassfest`) on push, pull request, weekly schedule, and manual dispatch; minimal permissions (`permissions: {}`)
+
+### Changed
+
+- **manifest.json** — populated `codeowners` field (`@onpremcloudguy`), updated `documentation` URL to actual repository, added `issue_tracker` field
+
+---
+
 ## [0.4.0] — 2026-03-08
 
 ### Feature: Lovelace Vehicle Dashboard & Custom Cards (`004-lovelace-dashboard`)
