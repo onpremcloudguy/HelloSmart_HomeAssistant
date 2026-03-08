@@ -3,21 +3,22 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, CONF_REGION
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import SmartAPI, TokenExpiredError
 from .auth import AuthenticationError, async_login_eu, async_login_intl
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
-from .models import Account, AuthState, OTAInfo, Region, VehicleData
+from .const import COMMAND_COOLDOWN_SECONDS, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .models import Account, AuthState, ChargingReservation, CommandResult, OTAInfo, Region, VehicleData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,6 +57,98 @@ class SmartDataCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
     def get_device_info(self, vin: str) -> DeviceInfo | None:
         """Return DeviceInfo for a specific vehicle."""
         return self._device_infos.get(vin)
+
+    async def async_send_vehicle_command(
+        self,
+        vin: str,
+        service_id: str,
+        command: str,
+        service_parameters: list[dict],
+        duration: int = 6,
+    ) -> CommandResult:
+        """Send a vehicle command with cooldown enforcement and delayed refresh.
+
+        Builds the standard payload envelope, enforces per-VIN cooldown,
+        calls select_vehicle + send_command, and schedules a delayed refresh.
+        """
+        if self._account is None or not self._account.is_token_valid:
+            await self._async_authenticate()
+
+        account = self._account
+        assert account is not None
+
+        # Enforce per-VIN cooldown
+        vehicle_data = self.data.get(vin) if self.data else None
+        if vehicle_data and vehicle_data.last_command_time:
+            elapsed = (datetime.now() - vehicle_data.last_command_time).total_seconds()
+            if elapsed < COMMAND_COOLDOWN_SECONDS:
+                raise HomeAssistantError(
+                    f"Command cooldown active, wait {COMMAND_COOLDOWN_SECONDS - elapsed:.0f}s"
+                )
+
+        # Select vehicle first (required by API)
+        await self._api.async_select_vehicle(account, vin)
+
+        # Build payload envelope — charging uses different field names
+        timestamp_ms = str(int(datetime.now().timestamp() * 1000))
+
+        if service_id == "rcs":
+            # Charging: camelCase timeStamp, int recurrentOperation, scheduledTime
+            payload: dict = {
+                "creator": "tc",
+                "command": command,
+                "serviceId": service_id,
+                "timeStamp": timestamp_ms,
+                "operationScheduling": {
+                    "scheduledTime": None,
+                    "interval": 0,
+                    "occurs": 1,
+                    "recurrentOperation": 0,
+                    "duration": duration,
+                },
+                "serviceParameters": service_parameters,
+            }
+        else:
+            payload = {
+                "creator": "tc",
+                "command": command,
+                "serviceId": service_id,
+                "timestamp": timestamp_ms,
+                "operationScheduling": {
+                    "duration": duration,
+                    "interval": 0,
+                    "occurs": 1,
+                    "recurrentOperation": False,
+                },
+                "serviceParameters": service_parameters,
+            }
+
+        # Send command with token-expiry retry
+        try:
+            result = await self._api.async_send_command(account, vin, payload)
+        except TokenExpiredError:
+            _LOGGER.debug("Token expired during command, re-authenticating")
+            await self._async_authenticate()
+            account = self._account
+            assert account is not None
+            await self._api.async_select_vehicle(account, vin)
+            result = await self._api.async_send_command(account, vin, payload)
+
+        # Update cooldown timestamp
+        if vehicle_data:
+            vehicle_data.last_command_time = datetime.now()
+
+        if result.success:
+            # Schedule delayed refresh to pick up actual state
+            async_call_later(self.hass, 8, lambda _: self.hass.async_create_task(
+                self.async_request_refresh()
+            ))
+        else:
+            raise HomeAssistantError(
+                result.error_message or f"Command {service_id} failed"
+            )
+
+        return result
 
     async def _async_authenticate(self) -> Account:
         """Authenticate or re-authenticate against the Smart API."""
@@ -142,16 +235,12 @@ class SmartDataCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
                 await self._api.async_select_vehicle(account, vin)
                 status = await self._api.async_get_vehicle_status(account, vin)
 
-                # Fetch SOC / charging detail
+                # Fetch SOC / charging target
+                target_soc: int | None = None
                 try:
                     soc_data = await self._api.async_get_soc(account, vin)
                     if soc_data:
-                        if soc_data.get("chargeUAct"):
-                            status.charge_voltage = float(soc_data["chargeUAct"])
-                        if soc_data.get("chargeIAct"):
-                            status.charge_current = float(soc_data["chargeIAct"])
-                        if soc_data.get("timeToFullyCharged"):
-                            status.time_to_full = int(soc_data["timeToFullyCharged"])
+                        target_soc = soc_data.get("target_soc")
                 except Exception:
                     _LOGGER.debug("SOC detail unavailable for %s", vin[:6] + "...", exc_info=True)
 
@@ -189,6 +278,13 @@ class SmartDataCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
                     charging_reservation = await self._api.async_get_charging_reservation(account, vin)
                 except Exception:
                     _LOGGER.debug("Charging reservation unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                # Merge target SOC from SOC endpoint into charging reservation
+                if target_soc is not None:
+                    if charging_reservation is None:
+                        charging_reservation = ChargingReservation(target_soc=target_soc)
+                    elif charging_reservation.target_soc is None:
+                        charging_reservation.target_soc = target_soc
 
                 # Fetch climate schedule
                 climate_schedule = None

@@ -13,7 +13,18 @@ from .coordinator import SmartDataCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.DEVICE_TRACKER]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+    Platform.DEVICE_TRACKER,
+    Platform.LOCK,
+    Platform.CLIMATE,
+    Platform.SWITCH,
+    Platform.BUTTON,
+    Platform.NUMBER,
+    Platform.SELECT,
+    Platform.TIME,
+]
 
 type SmartConfigEntry = ConfigEntry[SmartDataCoordinator]
 

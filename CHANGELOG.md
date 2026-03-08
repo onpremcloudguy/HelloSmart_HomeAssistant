@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] — 2026-03-08
+
+### Feature: API Command Controls (`003-api-command-controls`)
+
+Added full vehicle remote-control capabilities via PUT command endpoints, 7 new HA platforms, and SmartHashtag entity parity. Expanded entity count from 82 to 172.
+
+### Added
+
+- **Command infrastructure** — `async_send_command()` PUT transport with HMAC-signed payloads, `async_send_vehicle_command()` orchestrator with 5-second per-VIN cooldown, automatic vehicle selection, and 8-second delayed refresh after commands
+- **Lock platform** — Door lock/unlock with optimistic state updates (`RDL_2`/`RDU_2`), trunk locker lock for equipped vehicles
+- **Climate platform** — Pre-conditioning start/stop with target temperature control (16–30°C), `HVACMode.HEAT_COOL`/`OFF` (`RCE_2`)
+- **Switch platform** — Charging start/stop (`rcs`), fridge toggle (`UFR`), fragrance toggle, VTM enable/disable, climate schedule on/off — 5 switch entities total
+- **Button platform** — Horn (`RHL`), flash lights, find my car (horn + flash), close windows (`RWS_2`) — 4 button entities
+- **Number platform** — Charging target SOC slider (50–100%, step 5) via charging reservation PUT endpoint
+- **Time platform** — Charging start/end time pickers, climate schedule time picker via schedule PUT endpoints
+- **Select platform** — Seat heating control (driver, passenger, steering wheel) via `RSH` with Off/Low/Medium/High levels, driver seat ventilation control via `RSV`
+- **SmartHashtag entity parity** — Added ~90 new status fields, 33 new sensors, 50 new binary sensors to match SmartHashtag integration coverage
+- **Data models** — `CommandResult` dataclass, seat heating/ventilation status fields, extended vehicle status fields for all SmartHashtag-equivalent data
+- **API documentation** — Command endpoint contract specs in `contracts/smart-api-commands.md`
+
+### Changed
+
+- **Entity count** — 82 → 172 entities across 10 platforms (sensor: 83, binary_sensor: 74, device_tracker: 1, lock: 2, climate: 1, switch: 5, button: 4, number: 1, select: 4, time: 2)
+- **Entity registration** — Unconditional registration for all sensor/binary_sensor entities (no longer skips when data is None)
+- **Entity defaults** — All `value_fn`/`is_on_fn` lambdas return meaningful defaults (0, False, "off", "inactive") instead of None — zero unavailable entities
+- **Battery device class** — Only main EV battery (`battery_level`) tagged as `SensorDeviceClass.BATTERY`; removed from 12V battery, backup battery, and target SOC sensors
+- **Device tracker** — Always available when coordinator has data (no longer requires GPS coordinates to be non-None)
+- **Last trip energy** — State class changed from `MEASUREMENT` to `TOTAL` to satisfy HA's `ENERGY` device class constraint
+
+### Fixed
+
+- Battery status defaulting to 12V battery instead of main EV battery level
+- Stale recorder entities from previous naming schemes (45+ orphaned entries purged)
+
+---
+
 ## [0.2.0] — 2026-03-08
 
 ### Feature: APK GET Endpoint Extraction & Integration (`002-apk-get-endpoints`)

@@ -12,9 +12,12 @@ import aiohttp
 
 from .auth import AuthenticationError, build_signed_headers
 from .const import (
+    API_CHARGING_RESERVATION_PATH,
+    API_CLIMATE_SCHEDULE_PATH,
     API_CODE_SUCCESS,
     API_CODE_TOKEN_EXPIRED,
     API_CODE_VEHICLE_NOT_LINKED,
+    API_TELEMATICS_COMMAND_PATH,
     EU_API_BASE_URL,
     OTA_BASE_URL,
     URL_ALLOWLIST,
@@ -25,6 +28,7 @@ from .models import (
     ChargingReservation,
     ChargingState,
     ClimateSchedule,
+    CommandResult,
     DiagnosticEntry,
     EnergyRanking,
     FOTANotification,
@@ -196,7 +200,11 @@ class SmartAPI:
     async def async_get_soc(
         self, account: Account, vin: str
     ) -> dict:
-        """Fetch SOC / charging detail for a vehicle."""
+        """Fetch SOC / charging target for a vehicle.
+
+        Returns dict with 'target_soc' (int, 0-100) extracted from the API's
+        soc field (which is percentage * 10, e.g. '1000' = 100%).
+        """
         base_url = self._get_base_url(account)
         url = (
             f"{base_url}/remote-control/vehicle/status/soc/{vin}"
@@ -204,7 +212,14 @@ class SmartAPI:
         )
 
         data = await self._signed_request("GET", url, account)
-        return data.get("data", {})
+        d = data.get("data", {})
+        result: dict = {}
+        if d.get("soc"):
+            try:
+                result["target_soc"] = int(d["soc"]) // 10
+            except (ValueError, TypeError):
+                pass
+        return result
 
     async def async_get_ota_info(
         self, account: Account, vin: str
@@ -290,17 +305,32 @@ class SmartAPI:
 
     async def async_get_charging_reservation(
         self, account: Account, vin: str
-    ) -> ChargingReservation:
-        """Fetch charging reservation / schedule."""
+    ) -> ChargingReservation | None:
+        """Fetch charging reservation / schedule.
+
+        The API returns a paginated command history. When list is null or
+        empty, no reservation exists. Otherwise parse the latest entry.
+        """
         base_url = self._get_base_url(account)
         url = f"{base_url}/remote-control/charging/reservation/{vin}"
         data = await self._signed_request("GET", url, account)
         d = data.get("data", {})
+
+        # Real API returns {pagination, serviceResult, list}
+        entries = d.get("list")
+        if not entries:
+            return None
+
+        # Parse the latest reservation entry
+        latest = entries[0] if isinstance(entries, list) else None
+        if not latest:
+            return None
+
         return ChargingReservation(
-            active=d.get("reservationStatus") == "active",
-            start_time=d.get("startTime", ""),
-            end_time=d.get("endTime", ""),
-            target_soc=int(d["targetSoc"]) if d.get("targetSoc") else None,
+            active=latest.get("reservationStatus") == "active",
+            start_time=latest.get("startTime", ""),
+            end_time=latest.get("endTime", ""),
+            target_soc=int(latest["targetSoc"]) if latest.get("targetSoc") else None,
         )
 
     async def async_get_climate_schedule(
@@ -512,6 +542,115 @@ class SmartAPI:
         data = await self._signed_request("GET", url, account)
         return data.get("data", {}).get("plantNo", "")
 
+    async def async_send_command(
+        self, account: Account, vin: str, payload: dict
+    ) -> CommandResult:
+        """Send a vehicle command via PUT to the telematics endpoint.
+
+        The JSON body is serialized with no spaces per API contract C-001.
+        Handles both direct {success: true} and wrapped {code: 1000, data: {success: true}} responses.
+        """
+        base_url = self._get_base_url(account)
+        url = f"{base_url}{API_TELEMATICS_COMMAND_PATH}/{vin}"
+        self._validate_url(url)
+
+        body_str = json.dumps(payload, separators=(",", ":"))
+        headers = build_signed_headers("PUT", url, body_str, account)
+
+        service_id = payload.get("serviceId", "")
+        now = datetime.now()
+
+        async with self._session.put(url, headers=headers, data=body_str) as resp:
+            if resp.status == 401:
+                raise TokenExpiredError("HTTP 401 Unauthorized")
+            if resp.status == 429:
+                retry_after = int(resp.headers.get("Retry-After", "60"))
+                raise RateLimitedError(retry_after)
+            resp.raise_for_status()
+            data = await resp.json()
+
+        code = data.get("code")
+        if code is not None:
+            try:
+                code = int(code)
+            except (ValueError, TypeError):
+                pass
+            if code == API_CODE_TOKEN_EXPIRED:
+                raise TokenExpiredError("API code 1402: token expired")
+
+        # Handle both response formats
+        if "data" in data and isinstance(data["data"], dict):
+            success = data["data"].get("success", False)
+            error_msg = data["data"].get("message")
+        else:
+            success = data.get("success", False)
+            error_msg = data.get("message")
+
+        return CommandResult(
+            success=bool(success),
+            service_id=service_id,
+            timestamp=now,
+            error_message=error_msg if not success else None,
+        )
+
+    async def async_set_charging_reservation(
+        self, account: Account, vin: str, data: dict
+    ) -> CommandResult:
+        """Update charging reservation via PUT."""
+        base_url = self._get_base_url(account)
+        url = f"{base_url}{API_CHARGING_RESERVATION_PATH}/{vin}"
+        self._validate_url(url)
+
+        body_str = json.dumps(data, separators=(",", ":"))
+        headers = build_signed_headers("PUT", url, body_str, account)
+        now = datetime.now()
+
+        async with self._session.put(url, headers=headers, data=body_str) as resp:
+            if resp.status == 401:
+                raise TokenExpiredError("HTTP 401 Unauthorized")
+            if resp.status == 429:
+                retry_after = int(resp.headers.get("Retry-After", "60"))
+                raise RateLimitedError(retry_after)
+            resp.raise_for_status()
+            resp_data = await resp.json()
+
+        success = resp_data.get("success", resp_data.get("code") == API_CODE_SUCCESS)
+        return CommandResult(
+            success=bool(success),
+            service_id="charging_reservation",
+            timestamp=now,
+            error_message=resp_data.get("message") if not success else None,
+        )
+
+    async def async_set_climate_schedule(
+        self, account: Account, vin: str, data: dict
+    ) -> CommandResult:
+        """Update climate schedule via PUT."""
+        base_url = self._get_base_url(account)
+        url = f"{base_url}{API_CLIMATE_SCHEDULE_PATH}/{vin}"
+        self._validate_url(url)
+
+        body_str = json.dumps(data, separators=(",", ":"))
+        headers = build_signed_headers("PUT", url, body_str, account)
+        now = datetime.now()
+
+        async with self._session.put(url, headers=headers, data=body_str) as resp:
+            if resp.status == 401:
+                raise TokenExpiredError("HTTP 401 Unauthorized")
+            if resp.status == 429:
+                retry_after = int(resp.headers.get("Retry-After", "60"))
+                raise RateLimitedError(retry_after)
+            resp.raise_for_status()
+            resp_data = await resp.json()
+
+        success = resp_data.get("success", resp_data.get("code") == API_CODE_SUCCESS)
+        return CommandResult(
+            success=bool(success),
+            service_id="climate_schedule",
+            timestamp=now,
+            error_message=resp_data.get("message") if not success else None,
+        )
+
     @staticmethod
     def _get_base_url(account: Account) -> str:
         """Get the API base URL for the account's region.
@@ -640,11 +779,162 @@ class SmartAPI:
         power_mode_raw = basic_raw.get("engineStatus")
         power_mode = power_mode_from_api(power_mode_raw) if power_mode_raw is not None else None
 
+        # ── Running status (lights, trip meters, speed) ─────────────────
+        trip_meter_1 = _safe_float(running_status.get("tripMeter1"))
+        trip_meter_2 = _safe_float(running_status.get("tripMeter2"))
+        avg_speed = _safe_float(running_status.get("avgSpeed"))
+        engine_coolant_level = _safe_int(running_status.get("engineCoolantLevelStatus"))
+
+        # Light status booleans (0=off, non-zero=on)
+        light_low_beam = _safe_bool(running_status.get("loBeam"))
+        light_high_beam = _safe_bool(running_status.get("hiBeam"))
+        light_drl = _safe_bool(running_status.get("drl"))
+        light_front_fog = _safe_bool(running_status.get("frntFog"))
+        light_rear_fog = _safe_bool(running_status.get("reFog"))
+        light_position_front = _safe_bool(running_status.get("posLiFrnt"))
+        light_position_rear = _safe_bool(running_status.get("posLiRe"))
+        light_turn_left = _safe_bool(running_status.get("trunIndrLe"))
+        light_turn_right = _safe_bool(running_status.get("trunIndrRi"))
+        light_reverse = _safe_bool(running_status.get("reverseLi"))
+        light_stop = _safe_bool(running_status.get("stopLi"))
+        light_hazard = _safe_bool(running_status.get("dbl"))
+        light_ahbc = _safe_bool(running_status.get("ahbc"))
+        light_afs = _safe_bool(running_status.get("afs"))
+        light_ahl = _safe_bool(running_status.get("ahl"))
+        light_highway = _safe_bool(running_status.get("hwl"))
+        light_corner = _safe_bool(running_status.get("cornrgLi"))
+        light_welcome = _safe_bool(running_status.get("welcome"))
+        light_goodbye = _safe_bool(running_status.get("goodbye"))
+        light_home_safe = _safe_bool(running_status.get("homeSafe"))
+        light_approach = _safe_bool(running_status.get("approach"))
+        light_show = _safe_bool(running_status.get("ltgShow"))
+        light_all_weather = _safe_bool(running_status.get("allwl"))
+        light_flash = _safe_bool(running_status.get("flash"))
+
+        # ── Climate detailed ────────────────────────────────────────────
+        window_position_driver = _safe_int(climate_raw.get("winPosDriver"))
+        window_position_passenger = _safe_int(climate_raw.get("winPosPassenger"))
+        window_position_driver_rear = _safe_int(climate_raw.get("winPosDriverRear"))
+        window_position_passenger_rear = _safe_int(climate_raw.get("winPosPassengerRear"))
+        sunroof_position = _safe_int(climate_raw.get("sunroofPos"))
+        sunroof_open = _safe_bool(climate_raw.get("sunroofOpenStatus"))
+        sun_curtain_rear_position = _safe_int(climate_raw.get("sunCurtainRearPos"))
+        sun_curtain_rear_open = _safe_bool(climate_raw.get("sunCurtainRearOpenStatus"))
+        curtain_position = _safe_int(climate_raw.get("curtainPos"))
+        curtain_open = _safe_bool(climate_raw.get("curtainOpenStatus"))
+        driver_seat_heating = _safe_int(climate_raw.get("drvHeatSts"))
+        passenger_seat_heating = _safe_int(climate_raw.get("passHeatingSts"))
+        rear_left_seat_heating = _safe_int(climate_raw.get("rlHeatingSts"))
+        rear_right_seat_heating = _safe_int(climate_raw.get("rrHeatingSts"))
+        driver_seat_ventilation = _safe_int(climate_raw.get("drvVentSts"))
+        passenger_seat_ventilation = _safe_int(climate_raw.get("passVentSts"))
+        rear_left_seat_ventilation = _safe_int(climate_raw.get("rlVentSts"))
+        rear_right_seat_ventilation = _safe_int(climate_raw.get("rrVentSts"))
+        steering_wheel_heating = _safe_int(climate_raw.get("steerWhlHeatingSts"))
+        pre_climate_active = _safe_bool(climate_raw.get("preClimateActive"))
+        defrost_active = _safe_bool(climate_raw.get("defrost"))
+        air_blower_active = _safe_bool(climate_raw.get("airBlowerActive"))
+        climate_overheat_protection = _safe_bool(
+            climate_raw.get("climateOverHeatProActive")
+        )
+
+        # ── Driving safety ──────────────────────────────────────────────
+        safety_raw = additional_status.get("drivingSafetyStatus", {})
+        door_lock_driver = _safe_int(safety_raw.get("doorLockStatusDriver"))
+        door_lock_passenger = _safe_int(safety_raw.get("doorLockStatusPassenger"))
+        door_lock_driver_rear = _safe_int(safety_raw.get("doorLockStatusDriverRear"))
+        door_lock_passenger_rear = _safe_int(
+            safety_raw.get("doorLockStatusPassengerRear")
+        )
+        central_locking = _safe_int(safety_raw.get("centralLockingStatus"))
+        trunk_locked = _safe_int(safety_raw.get("trunkLockStatus"))
+        trunk_open = _safe_bool(safety_raw.get("trunkOpenStatus"))
+        engine_hood_open = _safe_bool(safety_raw.get("engineHoodOpenStatus"))
+        electric_park_brake = _safe_bool(safety_raw.get("electricParkBrakeStatus"))
+        tank_flap_open_raw = safety_raw.get("tankFlapStatus")
+        tank_flap_open = (
+            int(tank_flap_open_raw) == 0
+            if tank_flap_open_raw is not None
+            else None
+        )
+        srs_crash = _safe_bool(safety_raw.get("srsCrashStatus"))
+        seatbelt_driver = (
+            bool(safety_raw.get("seatBeltStatusDriver"))
+            if safety_raw.get("seatBeltStatusDriver") is not None
+            else None
+        )
+        seatbelt_passenger = (
+            bool(safety_raw.get("seatBeltStatusPassenger"))
+            if safety_raw.get("seatBeltStatusPassenger") is not None
+            else None
+        )
+        seatbelt_rear_left = (
+            bool(safety_raw.get("seatBeltStatusDriverRear"))
+            if safety_raw.get("seatBeltStatusDriverRear") is not None
+            else None
+        )
+        seatbelt_rear_right = (
+            bool(safety_raw.get("seatBeltStatusPassengerRear"))
+            if safety_raw.get("seatBeltStatusPassengerRear") is not None
+            else None
+        )
+        seatbelt_rear_middle = (
+            bool(safety_raw.get("seatBeltStatusMidRear"))
+            if safety_raw.get("seatBeltStatusMidRear") is not None
+            else None
+        )
+
+        # ── Pollution ───────────────────────────────────────────────────
+        pollution_raw = additional_status.get("pollutionStatus", {})
+        interior_pm25 = _safe_float(pollution_raw.get("interiorPM25"))
+        interior_pm25_level = _safe_int(pollution_raw.get("interiorPM25Level"))
+        exterior_pm25_level = _safe_int(pollution_raw.get("exteriorPM25Level"))
+        relative_humidity = _safe_int(pollution_raw.get("relHumSts"))
+
+        # ── EV additional ───────────────────────────────────────────────
+        range_at_full_charge = _safe_float(
+            ev.get("distanceToEmptyOnBattery100Soc")
+        )
+        average_power_consumption = _safe_float(ev.get("averPowerConsumption"))
+        dc_charge_current = _safe_float(ev.get("dcChargeIAct"))
+        charge_v = _safe_float(ev.get("chargeUAct"))
+        charge_a = _safe_float(ev.get("chargeIAct"))
+        charging_power = (
+            round(charge_v * charge_a / 1000, 2)
+            if charge_v is not None and charge_a is not None
+            and charge_v > 0 and charge_a > 0
+            else None
+        )
+        charge_lid_ac_raw = ev.get("chargeLidAcStatus")
+        charge_lid_ac_open = (
+            int(charge_lid_ac_raw) == 0
+            if charge_lid_ac_raw is not None
+            else None
+        )
+        charge_lid_dc_raw = ev.get("chargeLidDcAcStatus")
+        charge_lid_dc_open = (
+            int(charge_lid_dc_raw) == 0
+            if charge_lid_dc_raw is not None
+            else None
+        )
+
+        # ── Maintenance additional ──────────────────────────────────────
+        engine_hours_to_service = _safe_int(
+            maintenance_raw.get("engineHrsToService")
+        )
+        service_warning = _safe_int(maintenance_raw.get("serviceWarningStatus"))
+        battery_12v_soh = _safe_float(
+            main_battery.get("stateOfHealth") if main_battery else None
+        )
+
         return VehicleStatus(
             battery_level=battery_level,
             range_remaining=range_remaining,
             charging_state=charging_state,
             charger_connected=charger_connected,
+            charge_voltage=_safe_float(ev.get("chargeUAct")),
+            charge_current=_safe_float(ev.get("chargeIAct")),
+            time_to_full=_safe_int(ev.get("timeToFullyCharged")),
             doors=doors,
             windows=windows,
             climate_active=climate_active,
@@ -674,4 +964,91 @@ class SmartAPI:
             interior_temp=interior_temp,
             exterior_temp=exterior_temp,
             power_mode=power_mode,
+            # Running status
+            trip_meter_1=trip_meter_1,
+            trip_meter_2=trip_meter_2,
+            average_speed=avg_speed,
+            engine_coolant_level=engine_coolant_level,
+            # Lights
+            light_low_beam=light_low_beam,
+            light_high_beam=light_high_beam,
+            light_drl=light_drl,
+            light_front_fog=light_front_fog,
+            light_rear_fog=light_rear_fog,
+            light_position_front=light_position_front,
+            light_position_rear=light_position_rear,
+            light_turn_left=light_turn_left,
+            light_turn_right=light_turn_right,
+            light_reverse=light_reverse,
+            light_stop=light_stop,
+            light_hazard=light_hazard,
+            light_ahbc=light_ahbc,
+            light_afs=light_afs,
+            light_ahl=light_ahl,
+            light_highway=light_highway,
+            light_corner=light_corner,
+            light_welcome=light_welcome,
+            light_goodbye=light_goodbye,
+            light_home_safe=light_home_safe,
+            light_approach=light_approach,
+            light_show=light_show,
+            light_all_weather=light_all_weather,
+            light_flash=light_flash,
+            # Climate detailed
+            window_position_driver=window_position_driver,
+            window_position_passenger=window_position_passenger,
+            window_position_driver_rear=window_position_driver_rear,
+            window_position_passenger_rear=window_position_passenger_rear,
+            sunroof_position=sunroof_position,
+            sunroof_open=sunroof_open,
+            sun_curtain_rear_position=sun_curtain_rear_position,
+            sun_curtain_rear_open=sun_curtain_rear_open,
+            curtain_position=curtain_position,
+            curtain_open=curtain_open,
+            driver_seat_heating=driver_seat_heating,
+            passenger_seat_heating=passenger_seat_heating,
+            rear_left_seat_heating=rear_left_seat_heating,
+            rear_right_seat_heating=rear_right_seat_heating,
+            driver_seat_ventilation=driver_seat_ventilation,
+            passenger_seat_ventilation=passenger_seat_ventilation,
+            rear_left_seat_ventilation=rear_left_seat_ventilation,
+            rear_right_seat_ventilation=rear_right_seat_ventilation,
+            steering_wheel_heating=steering_wheel_heating,
+            pre_climate_active=pre_climate_active,
+            defrost_active=defrost_active,
+            air_blower_active=air_blower_active,
+            climate_overheat_protection=climate_overheat_protection,
+            # Driving safety
+            door_lock_driver=door_lock_driver,
+            door_lock_passenger=door_lock_passenger,
+            door_lock_driver_rear=door_lock_driver_rear,
+            door_lock_passenger_rear=door_lock_passenger_rear,
+            central_locking=central_locking,
+            trunk_locked=trunk_locked,
+            trunk_open=trunk_open,
+            engine_hood_open=engine_hood_open,
+            electric_park_brake=electric_park_brake,
+            tank_flap_open=tank_flap_open,
+            srs_crash=srs_crash,
+            seatbelt_driver=seatbelt_driver,
+            seatbelt_passenger=seatbelt_passenger,
+            seatbelt_rear_left=seatbelt_rear_left,
+            seatbelt_rear_right=seatbelt_rear_right,
+            seatbelt_rear_middle=seatbelt_rear_middle,
+            # Pollution
+            interior_pm25=interior_pm25,
+            interior_pm25_level=interior_pm25_level,
+            exterior_pm25_level=exterior_pm25_level,
+            relative_humidity=relative_humidity,
+            # EV additional
+            range_at_full_charge=range_at_full_charge,
+            average_power_consumption=average_power_consumption,
+            dc_charge_current=dc_charge_current,
+            charging_power=charging_power,
+            charge_lid_ac_open=charge_lid_ac_open,
+            charge_lid_dc_open=charge_lid_dc_open,
+            # Maintenance additional
+            engine_hours_to_service=engine_hours_to_service,
+            service_warning=service_warning,
+            battery_12v_state_of_health=battery_12v_soh,
         )

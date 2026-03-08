@@ -83,7 +83,38 @@
       "backup_battery_level": { "name": "Telematics battery level" },
       "capability_count": { "name": "Supported services" },
       "washer_fluid_level": { "name": "Washer fluid" },
-      "fota_pending_count": { "name": "Pending firmware updates" }
+      "fota_pending_count": { "name": "Pending firmware updates" },
+      "trip_meter_1": { "name": "Trip meter 1" },
+      "trip_meter_2": { "name": "Trip meter 2" },
+      "average_speed": { "name": "Average speed" },
+      "engine_coolant_level": { "name": "Coolant level" },
+      "range_at_full_charge": { "name": "Range at full charge" },
+      "average_power_consumption": { "name": "Average consumption" },
+      "dc_charge_current": { "name": "DC charging current" },
+      "charging_power": { "name": "Charging power" },
+      "window_position_driver": { "name": "Driver window position" },
+      "window_position_passenger": { "name": "Passenger window position" },
+      "window_position_driver_rear": { "name": "Rear left window position" },
+      "window_position_passenger_rear": { "name": "Rear right window position" },
+      "sunroof_position": { "name": "Sunroof position" },
+      "curtain_position": { "name": "Curtain position" },
+      "sun_curtain_rear_position": { "name": "Rear sun curtain position" },
+      "driver_seat_heating": { "name": "Driver seat heating" },
+      "passenger_seat_heating": { "name": "Passenger seat heating" },
+      "rear_left_seat_heating": { "name": "Rear left seat heating" },
+      "rear_right_seat_heating": { "name": "Rear right seat heating" },
+      "driver_seat_ventilation": { "name": "Driver seat ventilation" },
+      "passenger_seat_ventilation": { "name": "Passenger seat ventilation" },
+      "rear_left_seat_ventilation": { "name": "Rear left seat ventilation" },
+      "rear_right_seat_ventilation": { "name": "Rear right seat ventilation" },
+      "steering_wheel_heating": { "name": "Steering wheel heating" },
+      "interior_pm25": { "name": "Interior PM2.5" },
+      "interior_pm25_level": { "name": "Interior air quality" },
+      "exterior_pm25_level": { "name": "Exterior air quality" },
+      "relative_humidity": { "name": "Interior humidity" },
+      "engine_hours_to_service": { "name": "Engine hours to service" },
+      "service_warning": { "name": "Service warning" },
+      "battery_12v_state_of_health": { "name": "12V battery health" }
     },
     "binary_sensor": {
       "driver_door": { "name": "Driver door" },
@@ -112,7 +143,120 @@
       "locker_locked": { "name": "Locker lock" },
       "diagnostic_active": { "name": "Diagnostic alert" },
       "locker_secret_set": { "name": "Locker PIN configured" },
-      "fota_available": { "name": "Firmware update available" }
+      "fota_available": { "name": "Firmware update available" },
+      "low_beam": { "name": "Low beam" },
+      "high_beam": { "name": "High beam" },
+      "daytime_running_lights": { "name": "Daytime running lights" },
+      "front_fog_light": { "name": "Front fog light" },
+      "rear_fog_light": { "name": "Rear fog light" },
+      "position_light_front": { "name": "Front position light" },
+      "position_light_rear": { "name": "Rear position light" },
+      "turn_indicator_left": { "name": "Left turn indicator" },
+      "turn_indicator_right": { "name": "Right turn indicator" },
+      "reverse_light": { "name": "Reverse light" },
+      "stop_light": { "name": "Brake light" },
+      "hazard_lights": { "name": "Hazard lights" },
+      "ahbc": { "name": "Auto high beam" },
+      "afs": { "name": "Adaptive front lighting" },
+      "ahl": { "name": "Auto headlight leveling" },
+      "highway_light": { "name": "Highway light" },
+      "corner_light": { "name": "Corner light" },
+      "welcome_light": { "name": "Welcome light" },
+      "goodbye_light": { "name": "Goodbye light" },
+      "home_safe_light": { "name": "Home safe light" },
+      "approach_light": { "name": "Approach light" },
+      "light_show_active": { "name": "Light show" },
+      "all_weather_light": { "name": "All weather light" },
+      "flash_light": { "name": "Flash" },
+      "door_lock_driver": { "name": "Driver door lock" },
+      "door_lock_passenger": { "name": "Passenger door lock" },
+      "door_lock_rear_left": { "name": "Rear left door lock" },
+      "door_lock_rear_right": { "name": "Rear right door lock" },
+      "trunk_locked": { "name": "Boot lock" },
+      "engine_hood": { "name": "Bonnet" },
+      "electric_park_brake": { "name": "Park brake" },
+      "tank_flap": { "name": "Charge flap" },
+      "srs_crash": { "name": "Crash detected" },
+      "seatbelt_driver": { "name": "Driver seatbelt" },
+      "seatbelt_passenger": { "name": "Passenger seatbelt" },
+      "seatbelt_rear_left": { "name": "Rear left seatbelt" },
+      "seatbelt_rear_right": { "name": "Rear right seatbelt" },
+      "seatbelt_rear_middle": { "name": "Rear middle seatbelt" },
+      "charge_lid_ac": { "name": "AC charge lid" },
+      "charge_lid_dc": { "name": "DC charge lid" },
+      "pre_climate_active": { "name": "Pre-conditioning" },
+      "defrost_active": { "name": "Defrost" },
+      "air_blower_active": { "name": "Air blower" },
+      "climate_overheat_protection": { "name": "Overheat protection" },
+      "sunroof_open": { "name": "Sunroof" },
+      "sun_curtain_rear_open": { "name": "Rear sun curtain" },
+      "curtain_open": { "name": "Curtain" }
+    },
+    "lock": {
+      "smart_door_lock": { "name": "Door lock" },
+      "smart_trunk_locker": { "name": "Trunk locker" }
+    },
+    "climate": {
+      "smart_climate": { "name": "Climate" }
+    },
+    "switch": {
+      "smart_charging": { "name": "Charging" },
+      "smart_fridge": { "name": "Fridge" },
+      "smart_fragrance": { "name": "Fragrance" },
+      "smart_vtm": { "name": "Theft monitoring" },
+      "smart_climate_schedule": { "name": "Climate schedule" }
+    },
+    "number": {
+      "smart_target_soc": { "name": "Charge target" }
+    },
+    "button": {
+      "smart_horn": { "name": "Horn" },
+      "smart_flash_lights": { "name": "Flash lights" },
+      "smart_find_my_car": { "name": "Find my car" },
+      "smart_close_windows": { "name": "Close windows" }
+    },
+    "time": {
+      "smart_charging_start": { "name": "Charging start time" },
+      "smart_charging_end": { "name": "Charging end time" },
+      "smart_climate_schedule_time": { "name": "Climate schedule time" }
+    },
+    "select": {
+      "driver_seat_heating_control": {
+        "name": "Driver seat heater",
+        "state": {
+          "off": "Off",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
+      },
+      "passenger_seat_heating_control": {
+        "name": "Passenger seat heater",
+        "state": {
+          "off": "Off",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
+      },
+      "steering_wheel_heating_control": {
+        "name": "Steering wheel heater",
+        "state": {
+          "off": "Off",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
+      },
+      "driver_seat_ventilation_control": {
+        "name": "Driver seat ventilation",
+        "state": {
+          "off": "Off",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
+      },
     }
   }
 }

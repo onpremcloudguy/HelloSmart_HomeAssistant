@@ -150,6 +150,100 @@ class VehicleStatus:
     # Vehicle state
     power_mode: PowerMode | None = None
 
+    # ── Running status ──────────────────────────────────────────────────
+    trip_meter_1: float | None = None
+    trip_meter_2: float | None = None
+    average_speed: float | None = None
+    engine_coolant_level: int | None = None
+
+    # ── Light status (from runningStatus) ───────────────────────────────
+    light_low_beam: bool | None = None
+    light_high_beam: bool | None = None
+    light_drl: bool | None = None
+    light_front_fog: bool | None = None
+    light_rear_fog: bool | None = None
+    light_position_front: bool | None = None
+    light_position_rear: bool | None = None
+    light_turn_left: bool | None = None
+    light_turn_right: bool | None = None
+    light_reverse: bool | None = None
+    light_stop: bool | None = None
+    light_hazard: bool | None = None
+    light_ahbc: bool | None = None
+    light_afs: bool | None = None
+    light_ahl: bool | None = None
+    light_highway: bool | None = None
+    light_corner: bool | None = None
+    light_welcome: bool | None = None
+    light_goodbye: bool | None = None
+    light_home_safe: bool | None = None
+    light_approach: bool | None = None
+    light_show: bool | None = None
+    light_all_weather: bool | None = None
+    light_flash: bool | None = None
+
+    # ── Climate detailed ────────────────────────────────────────────────
+    window_position_driver: int | None = None
+    window_position_passenger: int | None = None
+    window_position_driver_rear: int | None = None
+    window_position_passenger_rear: int | None = None
+    sunroof_position: int | None = None
+    sunroof_open: bool | None = None
+    sun_curtain_rear_position: int | None = None
+    sun_curtain_rear_open: bool | None = None
+    curtain_position: int | None = None
+    curtain_open: bool | None = None
+    driver_seat_heating: int | None = None
+    passenger_seat_heating: int | None = None
+    rear_left_seat_heating: int | None = None
+    rear_right_seat_heating: int | None = None
+    driver_seat_ventilation: int | None = None
+    passenger_seat_ventilation: int | None = None
+    rear_left_seat_ventilation: int | None = None
+    rear_right_seat_ventilation: int | None = None
+    steering_wheel_heating: int | None = None
+    pre_climate_active: bool | None = None
+    defrost_active: bool | None = None
+    air_blower_active: bool | None = None
+    climate_overheat_protection: bool | None = None
+
+    # ── Driving safety ──────────────────────────────────────────────────
+    door_lock_driver: int | None = None
+    door_lock_passenger: int | None = None
+    door_lock_driver_rear: int | None = None
+    door_lock_passenger_rear: int | None = None
+    central_locking: int | None = None
+    trunk_locked: int | None = None
+    trunk_open: bool | None = None
+    engine_hood_open: bool | None = None
+    electric_park_brake: bool | None = None
+    tank_flap_open: bool | None = None
+    srs_crash: bool | None = None
+    seatbelt_driver: bool | None = None
+    seatbelt_passenger: bool | None = None
+    seatbelt_rear_left: bool | None = None
+    seatbelt_rear_right: bool | None = None
+    seatbelt_rear_middle: bool | None = None
+
+    # ── Pollution ───────────────────────────────────────────────────────
+    interior_pm25: float | None = None
+    interior_pm25_level: int | None = None
+    exterior_pm25_level: int | None = None
+    relative_humidity: int | None = None
+
+    # ── EV additional ───────────────────────────────────────────────────
+    range_at_full_charge: float | None = None
+    average_power_consumption: float | None = None
+    dc_charge_current: float | None = None
+    charging_power: float | None = None
+    charge_lid_ac_open: bool | None = None
+    charge_lid_dc_open: bool | None = None
+
+    # ── Maintenance additional ──────────────────────────────────────────
+    engine_hours_to_service: int | None = None
+    service_warning: int | None = None
+    battery_12v_state_of_health: float | None = None
+
 
 @dataclass
 class OTAInfo:
@@ -310,6 +404,16 @@ class EnergyRanking:
 
 
 @dataclass
+class CommandResult:
+    """Outcome of a single vehicle command."""
+
+    success: bool
+    service_id: str
+    timestamp: datetime
+    error_message: str | None = None
+
+
+@dataclass
 class VehicleData:
     """Combined vehicle data returned by the coordinator."""
 
@@ -332,3 +436,4 @@ class VehicleData:
     total_distance: float | None = None
     locker_secret: LockerSecret | None = None
     fota_notification: FOTANotification | None = None
+    last_command_time: datetime | None = None

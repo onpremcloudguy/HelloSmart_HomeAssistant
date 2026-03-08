@@ -88,10 +88,27 @@ SENSITIVE_FIELDS: tuple[str, ...] = (
     "secretSet",
 )
 
+# --- Command service IDs ---
+SERVICE_ID_DOOR_LOCK = "RDL_2"
+SERVICE_ID_DOOR_UNLOCK = "RDU_2"
+SERVICE_ID_CLIMATE = "RCE_2"
+SERVICE_ID_CHARGING = "rcs"
+SERVICE_ID_HORN_LIGHT = "RHL"
+SERVICE_ID_WINDOW_SET = "RWS_2"
+SERVICE_ID_FRIDGE = "UFR"
+SERVICE_ID_SEAT_HEAT = "RSH"
+SERVICE_ID_SEAT_VENT = "RSV"
+
+# --- Command settings ---
+COMMAND_COOLDOWN_SECONDS = 5
+
 # --- API URL paths ---
 API_SESSION_PATH = "/auth/account/session/secure"
 API_CARS_PATH = "/device-platform/user/vehicle/secure"
 API_SELECT_CAR_PATH = "/device-platform/user/session/update"
+API_TELEMATICS_COMMAND_PATH = "/remote-control/vehicle/telematics"
+API_CHARGING_RESERVATION_PATH = "/remote-control/charging/reservation"
+API_CLIMATE_SCHEDULE_PATH = "/remote-control/schedule"
 
 # --- API response codes ---
 API_CODE_SUCCESS = 1000

@@ -69,8 +69,5 @@ class SmartDeviceTracker(CoordinatorEntity[SmartDataCoordinator], TrackerEntity)
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available (has GPS data)."""
-        if not super().available or self._vin not in self.coordinator.data:
-            return False
-        data = self.coordinator.data[self._vin]
-        return data.status.latitude is not None and data.status.longitude is not None
+        """Return True if entity is available."""
+        return super().available and self._vin in self.coordinator.data
