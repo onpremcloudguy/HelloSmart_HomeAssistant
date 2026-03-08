@@ -14,10 +14,15 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    EntityCategory,
     PERCENTAGE,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
+    UnitOfEnergy,
     UnitOfLength,
+    UnitOfPressure,
+    UnitOfSpeed,
+    UnitOfTemperature,
     UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
@@ -26,7 +31,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import SmartDataCoordinator
-from .models import ChargingState, VehicleData
+from .models import ChargingState, PowerMode, VehicleData
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -37,9 +42,11 @@ class SmartSensorEntityDescription(SensorEntityDescription):
 
 
 SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
+    # ── Charging & Battery ──────────────────────────────────────────────
     SmartSensorEntityDescription(
         key="battery_level",
         translation_key="battery_level",
+        icon="mdi:car-battery",
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.BATTERY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -48,14 +55,17 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
     SmartSensorEntityDescription(
         key="range_remaining",
         translation_key="range_remaining",
+        icon="mdi:map-marker-distance",
         native_unit_of_measurement=UnitOfLength.KILOMETERS,
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
         value_fn=lambda data: data.status.range_remaining,
     ),
     SmartSensorEntityDescription(
         key="charging_status",
         translation_key="charging_status",
+        icon="mdi:ev-station",
         device_class=SensorDeviceClass.ENUM,
         options=[state.value for state in ChargingState],
         value_fn=lambda data: data.status.charging_state.value,
@@ -63,36 +73,481 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
     SmartSensorEntityDescription(
         key="charge_voltage",
         translation_key="charge_voltage",
+        icon="mdi:flash",
         native_unit_of_measurement=UnitOfElectricPotential.VOLT,
         device_class=SensorDeviceClass.VOLTAGE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=lambda data: data.status.charge_voltage,
     ),
     SmartSensorEntityDescription(
         key="charge_current",
         translation_key="charge_current",
+        icon="mdi:current-ac",
         native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
         device_class=SensorDeviceClass.CURRENT,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=lambda data: data.status.charge_current,
     ),
     SmartSensorEntityDescription(
         key="time_to_full",
         translation_key="time_to_full",
+        icon="mdi:battery-clock",
         native_unit_of_measurement=UnitOfTime.MINUTES,
         device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.status.time_to_full,
     ),
+    # ── Firmware ───────────────────────────────────────────────────────
     SmartSensorEntityDescription(
         key="current_firmware_version",
         translation_key="current_firmware_version",
+        icon="mdi:package-up",
+        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data.ota.current_version or None,
     ),
     SmartSensorEntityDescription(
         key="target_firmware_version",
         translation_key="target_firmware_version",
+        icon="mdi:package-down",
+        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data.ota.target_version or None,
+    ),
+    # ── Tyres ──────────────────────────────────────────────────────────
+    SmartSensorEntityDescription(
+        key="tyre_pressure_fl",
+        translation_key="tyre_pressure_fl",
+        icon="mdi:car-tire-alert",
+        native_unit_of_measurement=UnitOfPressure.KPA,
+        device_class=SensorDeviceClass.PRESSURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data.status.tyre_pressure_fl,
+    ),
+    SmartSensorEntityDescription(
+        key="tyre_pressure_fr",
+        translation_key="tyre_pressure_fr",
+        icon="mdi:car-tire-alert",
+        native_unit_of_measurement=UnitOfPressure.KPA,
+        device_class=SensorDeviceClass.PRESSURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data.status.tyre_pressure_fr,
+    ),
+    SmartSensorEntityDescription(
+        key="tyre_pressure_rl",
+        translation_key="tyre_pressure_rl",
+        icon="mdi:car-tire-alert",
+        native_unit_of_measurement=UnitOfPressure.KPA,
+        device_class=SensorDeviceClass.PRESSURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data.status.tyre_pressure_rl,
+    ),
+    SmartSensorEntityDescription(
+        key="tyre_pressure_rr",
+        translation_key="tyre_pressure_rr",
+        icon="mdi:car-tire-alert",
+        native_unit_of_measurement=UnitOfPressure.KPA,
+        device_class=SensorDeviceClass.PRESSURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data.status.tyre_pressure_rr,
+    ),
+    SmartSensorEntityDescription(
+        key="tyre_temp_fl",
+        translation_key="tyre_temp_fl",
+        icon="mdi:tire",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data.status.tyre_temp_fl,
+    ),
+    SmartSensorEntityDescription(
+        key="tyre_temp_fr",
+        translation_key="tyre_temp_fr",
+        icon="mdi:tire",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data.status.tyre_temp_fr,
+    ),
+    SmartSensorEntityDescription(
+        key="tyre_temp_rl",
+        translation_key="tyre_temp_rl",
+        icon="mdi:tire",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data.status.tyre_temp_rl,
+    ),
+    SmartSensorEntityDescription(
+        key="tyre_temp_rr",
+        translation_key="tyre_temp_rr",
+        icon="mdi:tire",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data.status.tyre_temp_rr,
+    ),
+    # ── Maintenance ────────────────────────────────────────────────────
+    SmartSensorEntityDescription(
+        key="odometer",
+        translation_key="odometer",
+        icon="mdi:counter",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=0,
+        value_fn=lambda data: data.status.odometer,
+    ),
+    SmartSensorEntityDescription(
+        key="days_to_service",
+        translation_key="days_to_service",
+        icon="mdi:wrench-clock",
+        native_unit_of_measurement=UnitOfTime.DAYS,
+        device_class=SensorDeviceClass.DURATION,
+        value_fn=lambda data: data.status.days_to_service,
+    ),
+    SmartSensorEntityDescription(
+        key="distance_to_service",
+        translation_key="distance_to_service",
+        icon="mdi:road-variant",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        suggested_display_precision=0,
+        value_fn=lambda data: data.status.distance_to_service,
+    ),
+    # ── 12V Battery ────────────────────────────────────────────────────
+    SmartSensorEntityDescription(
+        key="battery_12v_voltage",
+        translation_key="battery_12v_voltage",
+        icon="mdi:car-battery",
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data.status.battery_12v_voltage,
+    ),
+    SmartSensorEntityDescription(
+        key="battery_12v_level",
+        translation_key="battery_12v_level",
+        icon="mdi:car-battery",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.BATTERY,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data.status.battery_12v_level,
+    ),
+    # ── Climate ────────────────────────────────────────────────────────
+    SmartSensorEntityDescription(
+        key="interior_temp",
+        translation_key="interior_temp",
+        icon="mdi:thermometer",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data.status.interior_temp,
+    ),
+    SmartSensorEntityDescription(
+        key="exterior_temp",
+        translation_key="exterior_temp",
+        icon="mdi:sun-thermometer",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data.status.exterior_temp,
+    ),
+    # ── Vehicle State ─────────────────────────────────────────────────
+    SmartSensorEntityDescription(
+        key="power_mode",
+        translation_key="power_mode",
+        icon="mdi:power",
+        device_class=SensorDeviceClass.ENUM,
+        options=[mode.value for mode in PowerMode],
+        value_fn=lambda data: (
+            data.status.power_mode.value if data.status.power_mode
+            else (data.running_state.power_mode.value if data.running_state else None)
+        ),
+    ),
+    SmartSensorEntityDescription(
+        key="speed",
+        translation_key="speed",
+        icon="mdi:speedometer",
+        native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
+        device_class=SensorDeviceClass.SPEED,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data.running_state.speed if data.running_state else None,
+    ),
+    # ── Charging Schedule ──────────────────────────────────────────────
+    SmartSensorEntityDescription(
+        key="charging_schedule_status",
+        translation_key="charging_schedule_status",
+        icon="mdi:calendar-clock",
+        device_class=SensorDeviceClass.ENUM,
+        options=["active", "inactive"],
+        value_fn=lambda data: (
+            "active" if data.charging_reservation and data.charging_reservation.active
+            else ("inactive" if data.charging_reservation else None)
+        ),
+    ),
+    SmartSensorEntityDescription(
+        key="charging_schedule_start",
+        translation_key="charging_schedule_start",
+        icon="mdi:clock-start",
+        value_fn=lambda data: (
+            data.charging_reservation.start_time
+            if data.charging_reservation and data.charging_reservation.start_time
+            else None
+        ),
+    ),
+    SmartSensorEntityDescription(
+        key="charging_schedule_end",
+        translation_key="charging_schedule_end",
+        icon="mdi:clock-end",
+        value_fn=lambda data: (
+            data.charging_reservation.end_time
+            if data.charging_reservation and data.charging_reservation.end_time
+            else None
+        ),
+    ),
+    SmartSensorEntityDescription(
+        key="charging_target_soc",
+        translation_key="charging_target_soc",
+        icon="mdi:battery-charging-high",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.BATTERY,
+        value_fn=lambda data: (
+            data.charging_reservation.target_soc
+            if data.charging_reservation
+            else None
+        ),
+    ),
+    # ── Climate Schedule ──────────────────────────────────────────────
+    SmartSensorEntityDescription(
+        key="climate_schedule_status",
+        translation_key="climate_schedule_status",
+        icon="mdi:air-conditioner",
+        device_class=SensorDeviceClass.ENUM,
+        options=["enabled", "disabled"],
+        value_fn=lambda data: (
+            "enabled" if data.climate_schedule and data.climate_schedule.enabled
+            else ("disabled" if data.climate_schedule else None)
+        ),
+    ),
+    SmartSensorEntityDescription(
+        key="climate_schedule_time",
+        translation_key="climate_schedule_time",
+        icon="mdi:clock-outline",
+        value_fn=lambda data: (
+            data.climate_schedule.scheduled_time
+            if data.climate_schedule and data.climate_schedule.scheduled_time
+            else None
+        ),
+    ),
+    # ── Trip Journal ────────────────────────────────────────────────────
+    SmartSensorEntityDescription(
+        key="last_trip_distance",
+        translation_key="last_trip_distance",
+        icon="mdi:map-marker-path",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data.last_trip.distance if data.last_trip else None,
+    ),
+    SmartSensorEntityDescription(
+        key="last_trip_duration",
+        translation_key="last_trip_duration",
+        icon="mdi:timer-outline",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        device_class=SensorDeviceClass.DURATION,
+        value_fn=lambda data: data.last_trip.duration if data.last_trip else None,
+    ),
+    SmartSensorEntityDescription(
+        key="last_trip_energy",
+        translation_key="last_trip_energy",
+        icon="mdi:lightning-bolt",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data.last_trip.energy_consumption if data.last_trip else None,
+    ),
+    SmartSensorEntityDescription(
+        key="last_trip_avg_consumption",
+        translation_key="last_trip_avg_consumption",
+        icon="mdi:leaf",
+        native_unit_of_measurement="kWh/100km",
+        suggested_display_precision=1,
+        value_fn=lambda data: data.last_trip.avg_energy_consumption if data.last_trip else None,
+    ),
+    SmartSensorEntityDescription(
+        key="total_distance",
+        translation_key="total_distance",
+        icon="mdi:counter",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=0,
+        value_fn=lambda data: data.total_distance,
+    ),
+    SmartSensorEntityDescription(
+        key="energy_ranking",
+        translation_key="energy_ranking",
+        icon="mdi:podium",
+        value_fn=lambda data: data.energy_ranking.my_ranking if data.energy_ranking else None,
+    ),
+    # ── Accessories ─────────────────────────────────────────────────────
+    SmartSensorEntityDescription(
+        key="fridge_temperature",
+        translation_key="fridge_temperature",
+        icon="mdi:fridge-outline",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data.fridge.temperature if data.fridge else None,
+    ),
+    SmartSensorEntityDescription(
+        key="fragrance_level",
+        translation_key="fragrance_level",
+        icon="mdi:spray",
+        value_fn=lambda data: (
+            data.fragrance.level
+            if data.fragrance and data.fragrance.level
+            else None
+        ),
+    ),
+    # ── Security & Geofences ───────────────────────────────────────────
+    SmartSensorEntityDescription(
+        key="geofence_count",
+        translation_key="geofence_count",
+        icon="mdi:map-marker-radius",
+        value_fn=lambda data: data.geofence.count if data.geofence else None,
+    ),
+    SmartSensorEntityDescription(
+        key="last_trip_avg_speed",
+        translation_key="last_trip_avg_speed",
+        icon="mdi:speedometer-medium",
+        native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
+        device_class=SensorDeviceClass.SPEED,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data.last_trip.avg_speed if data.last_trip else None,
+    ),
+    SmartSensorEntityDescription(
+        key="last_trip_max_speed",
+        translation_key="last_trip_max_speed",
+        icon="mdi:speedometer",
+        native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
+        device_class=SensorDeviceClass.SPEED,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data.last_trip.max_speed if data.last_trip else None,
+    ),
+    SmartSensorEntityDescription(
+        key="climate_schedule_temp",
+        translation_key="climate_schedule_temp",
+        icon="mdi:air-conditioner",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        value_fn=lambda data: (
+            data.climate_schedule.temperature
+            if data.climate_schedule
+            else None
+        ),
+    ),
+    SmartSensorEntityDescription(
+        key="climate_schedule_duration",
+        translation_key="climate_schedule_duration",
+        icon="mdi:timer-sand",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        device_class=SensorDeviceClass.DURATION,
+        value_fn=lambda data: (
+            data.climate_schedule.duration
+            if data.climate_schedule
+            else None
+        ),
+    ),
+    SmartSensorEntityDescription(
+        key="fridge_mode",
+        translation_key="fridge_mode",
+        icon="mdi:fridge",
+        device_class=SensorDeviceClass.ENUM,
+        options=["cooling", "warming", "off"],
+        value_fn=lambda data: data.fridge.mode if data.fridge and data.fridge.mode else None,
+    ),
+    # ── Diagnostics ────────────────────────────────────────────────────
+    SmartSensorEntityDescription(
+        key="diagnostic_status",
+        translation_key="diagnostic_status",
+        icon="mdi:car-wrench",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.diagnostic.status if data.diagnostic and data.diagnostic.status else None,
+    ),
+    SmartSensorEntityDescription(
+        key="diagnostic_code",
+        translation_key="diagnostic_code",
+        icon="mdi:alert-circle-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data.diagnostic.dtc_code if data.diagnostic and data.diagnostic.dtc_code else None,
+    ),
+    SmartSensorEntityDescription(
+        key="backup_battery_voltage",
+        translation_key="backup_battery_voltage",
+        icon="mdi:battery-outline",
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data.telematics.backup_battery_voltage if data.telematics else None,
+    ),
+    SmartSensorEntityDescription(
+        key="backup_battery_level",
+        translation_key="backup_battery_level",
+        icon="mdi:battery-outline",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.BATTERY,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data.telematics.backup_battery_level if data.telematics else None,
+    ),
+    SmartSensorEntityDescription(
+        key="capability_count",
+        translation_key="capability_count",
+        icon="mdi:format-list-checks",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: len(data.capabilities.service_ids) if data.capabilities else None,
+    ),
+    SmartSensorEntityDescription(
+        key="washer_fluid_level",
+        translation_key="washer_fluid_level",
+        icon="mdi:wiper-wash",
+        value_fn=lambda data: data.status.washer_fluid_level,
+    ),
+    SmartSensorEntityDescription(
+        key="fota_pending_count",
+        translation_key="fota_pending_count",
+        icon="mdi:cellphone-arrow-down",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.fota_notification.pending_count if data.fota_notification else None,
     ),
 )
 
@@ -106,8 +561,10 @@ async def async_setup_entry(
     coordinator: SmartDataCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     entities: list[SmartSensorEntity] = []
-    for vin in coordinator.data:
+    for vin, vehicle_data in coordinator.data.items():
         for description in SENSOR_DESCRIPTIONS:
+            if description.value_fn(vehicle_data) is None:
+                continue
             entities.append(
                 SmartSensorEntity(
                     coordinator=coordinator,
