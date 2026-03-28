@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -14,12 +15,27 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import (
+    DOMAIN,
+    FUNCTION_ID_CHARGE_PORT_STATUS,
+    FUNCTION_ID_CURTAIN_STATUS,
+    FUNCTION_ID_DOOR_STATUS,
+    FUNCTION_ID_DOORS_STATUS,
+    FUNCTION_ID_FRAGRANCE,
+    FUNCTION_ID_HOOD_STATUS,
+    FUNCTION_ID_SKYLIGHT_STATUS,
+    FUNCTION_ID_TYRE_PRESSURE,
+    FUNCTION_ID_TRUNK_STATUS,
+    FUNCTION_ID_WINDOW_STATUS,
+)
 from .coordinator import SmartDataCoordinator
 from .models import VehicleData
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -27,6 +43,8 @@ class SmartBinarySensorEntityDescription(BinarySensorEntityDescription):
     """Describes a Hello Smart binary sensor entity."""
 
     is_on_fn: Callable[[VehicleData], bool | None]
+    required_capability: str | None = None
+    equipped_fn: Callable[[VehicleData], bool] | None = None
 
 
 BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
@@ -37,6 +55,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:car-door",
         device_class=BinarySensorDeviceClass.DOOR,
         is_on_fn=lambda data: data.status.doors.get("driver"),
+        required_capability=FUNCTION_ID_DOORS_STATUS,
     ),
     SmartBinarySensorEntityDescription(
         key="passenger_door",
@@ -44,6 +63,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:car-door",
         device_class=BinarySensorDeviceClass.DOOR,
         is_on_fn=lambda data: data.status.doors.get("passenger"),
+        required_capability=FUNCTION_ID_DOORS_STATUS,
     ),
     SmartBinarySensorEntityDescription(
         key="rear_left_door",
@@ -51,6 +71,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:car-door",
         device_class=BinarySensorDeviceClass.DOOR,
         is_on_fn=lambda data: data.status.doors.get("rear_left"),
+        required_capability=FUNCTION_ID_DOORS_STATUS,
     ),
     SmartBinarySensorEntityDescription(
         key="rear_right_door",
@@ -58,6 +79,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:car-door",
         device_class=BinarySensorDeviceClass.DOOR,
         is_on_fn=lambda data: data.status.doors.get("rear_right"),
+        required_capability=FUNCTION_ID_DOORS_STATUS,
     ),
     SmartBinarySensorEntityDescription(
         key="trunk",
@@ -65,6 +87,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:car-back",
         device_class=BinarySensorDeviceClass.DOOR,
         is_on_fn=lambda data: data.status.doors.get("trunk"),
+        required_capability=FUNCTION_ID_TRUNK_STATUS,
     ),
     # ── Windows ───────────────────────────────────────────────────
     SmartBinarySensorEntityDescription(
@@ -73,6 +96,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:car-door",
         device_class=BinarySensorDeviceClass.WINDOW,
         is_on_fn=lambda data: data.status.windows.get("driver"),
+        required_capability=FUNCTION_ID_WINDOW_STATUS,
     ),
     SmartBinarySensorEntityDescription(
         key="passenger_window",
@@ -80,6 +104,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:car-door",
         device_class=BinarySensorDeviceClass.WINDOW,
         is_on_fn=lambda data: data.status.windows.get("passenger"),
+        required_capability=FUNCTION_ID_WINDOW_STATUS,
     ),
     SmartBinarySensorEntityDescription(
         key="rear_left_window",
@@ -87,6 +112,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:car-door",
         device_class=BinarySensorDeviceClass.WINDOW,
         is_on_fn=lambda data: data.status.windows.get("rear_left"),
+        required_capability=FUNCTION_ID_WINDOW_STATUS,
     ),
     SmartBinarySensorEntityDescription(
         key="rear_right_window",
@@ -94,6 +120,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:car-door",
         device_class=BinarySensorDeviceClass.WINDOW,
         is_on_fn=lambda data: data.status.windows.get("rear_right"),
+        required_capability=FUNCTION_ID_WINDOW_STATUS,
     ),
     # ── Charging ──────────────────────────────────────────────────
     SmartBinarySensorEntityDescription(
@@ -119,6 +146,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:car-tire-alert",
         device_class=BinarySensorDeviceClass.PROBLEM,
         is_on_fn=lambda data: data.status.tyre_warning_fl,
+        required_capability=FUNCTION_ID_TYRE_PRESSURE,
     ),
     SmartBinarySensorEntityDescription(
         key="tyre_warning_fr",
@@ -126,6 +154,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:car-tire-alert",
         device_class=BinarySensorDeviceClass.PROBLEM,
         is_on_fn=lambda data: data.status.tyre_warning_fr,
+        required_capability=FUNCTION_ID_TYRE_PRESSURE,
     ),
     SmartBinarySensorEntityDescription(
         key="tyre_warning_rl",
@@ -133,6 +162,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:car-tire-alert",
         device_class=BinarySensorDeviceClass.PROBLEM,
         is_on_fn=lambda data: data.status.tyre_warning_rl,
+        required_capability=FUNCTION_ID_TYRE_PRESSURE,
     ),
     SmartBinarySensorEntityDescription(
         key="tyre_warning_rr",
@@ -140,6 +170,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:car-tire-alert",
         device_class=BinarySensorDeviceClass.PROBLEM,
         is_on_fn=lambda data: data.status.tyre_warning_rr,
+        required_capability=FUNCTION_ID_TYRE_PRESSURE,
     ),
     # ── Connectivity ──────────────────────────────────────────────
     SmartBinarySensorEntityDescription(
@@ -189,6 +220,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
             data.fragrance.active if data.fragrance
             else (data.status.fragrance_active if data.status.fragrance_active is not None else False)
         ),
+        required_capability=FUNCTION_ID_FRAGRANCE,
     ),
     SmartBinarySensorEntityDescription(
         key="locker_open",
@@ -454,6 +486,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
             if data.status.door_lock_driver is not None
             else False
         ),
+        required_capability=FUNCTION_ID_DOOR_STATUS,
     ),
     SmartBinarySensorEntityDescription(
         key="door_lock_passenger",
@@ -465,6 +498,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
             if data.status.door_lock_passenger is not None
             else False
         ),
+        required_capability=FUNCTION_ID_DOOR_STATUS,
     ),
     SmartBinarySensorEntityDescription(
         key="door_lock_rear_left",
@@ -476,6 +510,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
             if data.status.door_lock_driver_rear is not None
             else False
         ),
+        required_capability=FUNCTION_ID_DOOR_STATUS,
     ),
     SmartBinarySensorEntityDescription(
         key="door_lock_rear_right",
@@ -487,6 +522,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
             if data.status.door_lock_passenger_rear is not None
             else False
         ),
+        required_capability=FUNCTION_ID_DOOR_STATUS,
     ),
     SmartBinarySensorEntityDescription(
         key="trunk_locked",
@@ -498,6 +534,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
             if data.status.trunk_locked is not None
             else False
         ),
+        required_capability=FUNCTION_ID_TRUNK_STATUS,
     ),
     SmartBinarySensorEntityDescription(
         key="engine_hood",
@@ -505,6 +542,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:car",
         device_class=BinarySensorDeviceClass.OPENING,
         is_on_fn=lambda data: data.status.engine_hood_open,
+        required_capability=FUNCTION_ID_HOOD_STATUS,
     ),
     SmartBinarySensorEntityDescription(
         key="electric_park_brake",
@@ -566,6 +604,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:ev-plug-type2",
         device_class=BinarySensorDeviceClass.OPENING,
         is_on_fn=lambda data: data.status.charge_lid_ac_open,
+        required_capability=FUNCTION_ID_CHARGE_PORT_STATUS,
     ),
     SmartBinarySensorEntityDescription(
         key="charge_lid_dc",
@@ -573,6 +612,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:ev-plug-ccs2",
         device_class=BinarySensorDeviceClass.OPENING,
         is_on_fn=lambda data: data.status.charge_lid_dc_open,
+        required_capability=FUNCTION_ID_CHARGE_PORT_STATUS,
     ),
     # ── Climate Status ────────────────────────────────────────────────
     SmartBinarySensorEntityDescription(
@@ -609,6 +649,8 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         icon="mdi:window-open-variant",
         device_class=BinarySensorDeviceClass.OPENING,
         is_on_fn=lambda data: data.status.sunroof_open,
+        required_capability=FUNCTION_ID_SKYLIGHT_STATUS,
+        equipped_fn=lambda data: data.status.sunroof_position is not None,
     ),
     SmartBinarySensorEntityDescription(
         key="sun_curtain_rear_open",
@@ -617,6 +659,8 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         device_class=BinarySensorDeviceClass.OPENING,
         entity_registry_enabled_default=False,
         is_on_fn=lambda data: data.status.sun_curtain_rear_open,
+        required_capability=FUNCTION_ID_CURTAIN_STATUS,
+        equipped_fn=lambda data: data.status.sun_curtain_rear_position is not None,
     ),
     SmartBinarySensorEntityDescription(
         key="curtain_open",
@@ -625,6 +669,8 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[SmartBinarySensorEntityDescription, ...] = (
         device_class=BinarySensorDeviceClass.OPENING,
         entity_registry_enabled_default=False,
         is_on_fn=lambda data: data.status.curtain_open,
+        required_capability=FUNCTION_ID_CURTAIN_STATUS,
+        equipped_fn=lambda data: data.status.curtain_position is not None,
     ),
 )
 
@@ -639,7 +685,36 @@ async def async_setup_entry(
 
     entities: list[SmartBinarySensorEntity] = []
     for vin, vehicle_data in coordinator.data.items():
+        cap_flags = (
+            vehicle_data.capabilities.capability_flags
+            if vehicle_data.capabilities
+            else {}
+        )
+        skipped = 0
         for description in BINARY_SENSOR_DESCRIPTIONS:
+            if (
+                description.required_capability is not None
+                and not cap_flags.get(description.required_capability, False)
+            ):
+                skipped += 1
+                _LOGGER.debug(
+                    "Skipping binary sensor '%s' for %s: capability '%s' disabled",
+                    description.key,
+                    vin[:6] + "...",
+                    description.required_capability,
+                )
+                continue
+            if (
+                description.equipped_fn is not None
+                and not description.equipped_fn(vehicle_data)
+            ):
+                skipped += 1
+                _LOGGER.debug(
+                    "Skipping binary sensor '%s' for %s: hardware not equipped",
+                    description.key,
+                    vin[:6] + "...",
+                )
+                continue
             entities.append(
                 SmartBinarySensorEntity(
                     coordinator=coordinator,
@@ -647,8 +722,28 @@ async def async_setup_entry(
                     vin=vin,
                 )
             )
+        if skipped:
+            _LOGGER.info(
+                "Filtered %d binary sensor(s) for %s based on capabilities",
+                skipped,
+                vin[:6] + "...",
+            )
 
     async_add_entities(entities)
+
+    # Clean up stale entity registry entries for filtered-out entities
+    created_unique_ids = {e.unique_id for e in entities}
+    ent_reg = er.async_get(hass)
+    for reg_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+        if (
+            reg_entry.domain == "binary_sensor"
+            and reg_entry.platform == DOMAIN
+            and reg_entry.unique_id not in created_unique_ids
+        ):
+            _LOGGER.debug(
+                "Removing stale binary sensor entity: %s", reg_entry.entity_id,
+            )
+            ent_reg.async_remove(reg_entry.entity_id)
 
 
 class SmartBinarySensorEntity(

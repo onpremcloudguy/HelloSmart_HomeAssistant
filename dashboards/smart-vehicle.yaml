@@ -419,20 +419,25 @@ views:
                   --primary-text-color: #FFFFFF;
                   --secondary-text-color: #B3B3B3;
                 }
-          - type: custom:mushroom-entity-card
-            entity: binary_sensor.smart_234118_sunroof_open
-            name: Sunroof
-            icon: mdi:car-select
-            secondary_info: >-
-              Position: {{ states('sensor.smart_234118_sunroof_position') }}%
-            card_mod:
-              style: |
-                ha-card {
-                  background: #1E1E1E;
-                  border: 1px solid #333;
-                  --primary-text-color: #FFFFFF;
-                  --secondary-text-color: #B3B3B3;
-                }
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.smart_234118_sunroof_open
+                state_not: unavailable
+            card:
+              type: custom:mushroom-entity-card
+              entity: binary_sensor.smart_234118_sunroof_open
+              name: Sunroof
+              icon: mdi:car-select
+              secondary_info: >-
+                Position: {{ states('sensor.smart_234118_sunroof_position') }}%
+              card_mod:
+                style: |
+                  ha-card {
+                    background: #1E1E1E;
+                    border: 1px solid #333;
+                    --primary-text-color: #FFFFFF;
+                    --secondary-text-color: #B3B3B3;
+                  }
           - type: custom:mushroom-entity-card
             entity: button.smart_234118_smart_close_windows
             name: Close All Windows

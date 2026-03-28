@@ -115,6 +115,32 @@ SERVICE_ID_SEAT_VENT = "RSV"
 # --- Command settings ---
 COMMAND_COOLDOWN_SECONDS = 5
 
+# --- Capability function IDs (from APK FunctionId.java) ---
+FUNCTION_ID_REMOTE_LOCK = "remote_control_lock"
+FUNCTION_ID_REMOTE_UNLOCK = "remote_control_unlock"
+FUNCTION_ID_CLIMATE = "remote_air_condition_switch"
+FUNCTION_ID_WINDOW_CLOSE = "remote_window_close"
+FUNCTION_ID_WINDOW_OPEN = "remote_window_open"
+FUNCTION_ID_TRUNK_OPEN = "remote_trunk_open"
+FUNCTION_ID_HONK_FLASH = "honk_flash"
+FUNCTION_ID_SEAT_HEAT = "remote_seat_preheat_switch"
+FUNCTION_ID_SEAT_VENT = "seat_ventilation_status"
+FUNCTION_ID_FRAGRANCE = "remote_control_fragrance"
+FUNCTION_ID_CHARGING = "charging_status"
+FUNCTION_ID_DOOR_STATUS = "door_lock_switch_status"
+FUNCTION_ID_TRUNK_STATUS = "trunk_status"
+FUNCTION_ID_WINDOW_STATUS = "windows_rolling_status"
+FUNCTION_ID_SKYLIGHT_STATUS = "skylight_rolling_status"
+FUNCTION_ID_TYRE_PRESSURE = "tyre_pressure"
+FUNCTION_ID_VEHICLE_POSITION = "vehicle_position"
+FUNCTION_ID_TOTAL_MILEAGE = "total_mileage"
+FUNCTION_ID_HOOD_STATUS = "engine_compartment_cover_status"
+FUNCTION_ID_CHARGE_PORT_STATUS = "recharge_lid_status"
+FUNCTION_ID_CURTAIN_STATUS = "curtain_status"
+FUNCTION_ID_DOORS_STATUS = "vehiecle_doors_status"
+FUNCTION_ID_CLIMATE_STATUS = "climate_status"
+FUNCTION_ID_CHARGING_RESERVATION = "remote_appointment_charging"
+
 # --- API URL paths ---
 API_SESSION_PATH = "/auth/account/session/secure"
 API_CARS_PATH = "/device-platform/user/vehicle/secure"

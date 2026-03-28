@@ -49,6 +49,24 @@ class HelloSmartChargeCard extends HTMLElement {
     this._hass = null;
     this._keyMap = {};
     this._deviceId = null;
+    this._connected = false;
+  }
+
+  connectedCallback() {
+    this._connected = true;
+    // Re-render when attached to DOM — hass may have arrived before connection
+    if (this._hass && this._config.entity) {
+      try {
+        this._buildDeviceEntityMap();
+        this._render();
+      } catch (err) {
+        this._renderError("connectedCallback", err);
+      }
+    }
+  }
+
+  disconnectedCallback() {
+    this._connected = false;
   }
 
   static getStubConfig(hass) {
@@ -76,6 +94,17 @@ class HelloSmartChargeCard extends HTMLElement {
       show_12v: false,
       ...config,
     };
+    // Show loading placeholder until hass arrives
+    if (!this._hass) {
+      this.shadowRoot.innerHTML = `
+        <ha-card>
+          <div style="padding: 24px; text-align: center; color: var(--secondary-text-color, #aaa);">
+            <ha-icon icon="mdi:ev-station" style="--mdc-icon-size: 32px; opacity: 0.5;"></ha-icon>
+            <p style="margin: 8px 0 0; font-size: 13px;">Loading charge status…</p>
+          </div>
+        </ha-card>`;
+      return;
+    }
     try {
       this._render();
     } catch (err) {

@@ -24,6 +24,92 @@ class AuthState(enum.StrEnum):
     AUTH_FAILED = "auth_failed"
 
 
+class VehicleModel(enum.StrEnum):
+    """Smart vehicle model derived from matCode[0:3] or seriesCodeVs.
+
+    From APK VehicleModel.java and VehicleInfoConstants.java:
+      HX1 / HX11 = Smart #1
+      HC1 / HC11 = Smart #3
+      HY1 / HY11 = Smart #5
+    """
+
+    HASHTAG_ONE = "#1"
+    HASHTAG_THREE = "#3"
+    HASHTAG_FIVE = "#5"
+    UNKNOWN = "Unknown"
+
+    @staticmethod
+    def from_codes(mat_code: str, series_code: str = "") -> VehicleModel:
+        """Derive model from matCode[0:3] or seriesCodeVs."""
+        _PREFIX_MAP = {
+            "HX1": VehicleModel.HASHTAG_ONE,
+            "HC1": VehicleModel.HASHTAG_THREE,
+            "HY1": VehicleModel.HASHTAG_FIVE,
+        }
+        if len(mat_code) >= 3:
+            model = _PREFIX_MAP.get(mat_code[:3])
+            if model:
+                return model
+        _SERIES_MAP = {
+            "HX11": VehicleModel.HASHTAG_ONE,
+            "HC11": VehicleModel.HASHTAG_THREE,
+            "HY11": VehicleModel.HASHTAG_FIVE,
+        }
+        # Strip regional suffix (e.g. "HC11_IL" → "HC11")
+        base = series_code.split("_")[0] if series_code else ""
+        return _SERIES_MAP.get(base, VehicleModel.UNKNOWN)
+
+
+class VehicleEdition(enum.StrEnum):
+    """Vehicle trim / edition derived from matCode[5:7].
+
+    Feature availability per edition (from APK VehicleEdition.java):
+      - PURE:    no driver seat heating, no PM2.5 sensor
+      - PRO:     no PM2.5 sensor
+      - PULSE:   all features
+      - PREMIUM: all features
+      - BRABUS:  all features (top of range)
+      - LAUNCH:  all features
+      - UNKNOWN: treat as fully equipped (no filtering)
+
+    Applies identically across all models (#1, #3, #5).
+    """
+
+    PURE = "Pure"
+    PRO = "Pro"
+    PULSE = "Pulse"
+    PREMIUM = "Premium"
+    BRABUS = "BRABUS"
+    LAUNCH = "Launch Edition"
+    UNKNOWN = "Unknown"
+
+    @property
+    def has_driver_seat_heating(self) -> bool:
+        """Pure trim lacks driver seat heating."""
+        return self != VehicleEdition.PURE
+
+    @property
+    def has_pm25(self) -> bool:
+        """Pure and Pro trims lack PM2.5 air quality sensor."""
+        return self not in (VehicleEdition.PURE, VehicleEdition.PRO)
+
+    @staticmethod
+    def from_mat_code(mat_code: str) -> VehicleEdition:
+        """Extract edition from matCode positions [5:7]."""
+        if len(mat_code) < 7:
+            return VehicleEdition.UNKNOWN
+        code = mat_code[5:7]
+        _MAP = {
+            "D3": VehicleEdition.BRABUS,
+            "D2": VehicleEdition.PREMIUM,
+            "D1": VehicleEdition.PRO,
+            "GN": VehicleEdition.PULSE,
+            "80": VehicleEdition.PURE,
+            "01": VehicleEdition.LAUNCH,
+        }
+        return _MAP.get(code, VehicleEdition.UNKNOWN)
+
+
 class ChargingState(enum.StrEnum):
     """Human-readable charging states mapped from API chargerState codes."""
 
@@ -133,6 +219,16 @@ class Vehicle:
     tem_id: str = ""
     ihu_id: str = ""
     tem_type: str = ""
+
+    @property
+    def edition(self) -> VehicleEdition:
+        """Derive the vehicle edition/trim from matCode."""
+        return VehicleEdition.from_mat_code(self.mat_code)
+
+    @property
+    def smart_model(self) -> VehicleModel:
+        """Derive the Smart model (#1/#3/#5) from matCode or seriesCode."""
+        return VehicleModel.from_codes(self.mat_code, self.series_code)
 
 
 @dataclass
@@ -408,6 +504,17 @@ class VehicleCapabilities:
     """Feature capability flags for dynamic entity registration."""
 
     service_ids: list[str] = field(default_factory=list)
+    capability_flags: dict[str, bool] = field(default_factory=dict)
+
+
+@dataclass
+class StaticVehicleData:
+    """Cached static vehicle data fetched once per session."""
+
+    capabilities: VehicleCapabilities | None = None
+    ability: VehicleAbility | None = None
+    plant_no: str = ""
+    vehicle_image_path: str = ""
 
 
 @dataclass

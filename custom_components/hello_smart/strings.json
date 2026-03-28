@@ -121,6 +121,8 @@
       "series_name": { "name": "Series" },
       "vehicle_type": { "name": "Vehicle type" },
       "mat_code": { "name": "Material code" },
+      "vehicle_edition": { "name": "Edition" },
+      "vehicle_model": { "name": "Model" },
       "fuel_tank_capacity": { "name": "Fuel tank capacity" },
       "ihu_platform": { "name": "IHU platform" },
       "tbox_platform": { "name": "T-Box platform" },

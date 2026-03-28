@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from typing import Any
@@ -12,9 +13,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, SERVICE_ID_DOOR_LOCK, SERVICE_ID_DOOR_UNLOCK
+from .const import DOMAIN, FUNCTION_ID_REMOTE_LOCK, SERVICE_ID_DOOR_LOCK, SERVICE_ID_DOOR_UNLOCK
 from .coordinator import SmartDataCoordinator
 from .models import VehicleData
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -25,6 +28,7 @@ class SmartLockEntityDescription(LockEntityDescription):
     unlock_fn: Callable[[SmartDataCoordinator, str], Coroutine[Any, Any, None]]
     is_locked_fn: Callable[[VehicleData], bool | None]
     available_fn: Callable[[VehicleData], bool]
+    required_capability: str | None = None
 
 
 async def _lock_doors(coordinator: SmartDataCoordinator, vin: str) -> None:
@@ -82,6 +86,7 @@ LOCK_DESCRIPTIONS: tuple[SmartLockEntityDescription, ...] = (
                 data.status.door_lock_passenger_rear,
             )
         ),
+        required_capability=FUNCTION_ID_REMOTE_LOCK,
     ),
     SmartLockEntityDescription(
         key="smart_trunk_locker",
@@ -105,7 +110,23 @@ async def async_setup_entry(
 
     entities: list[SmartLock] = []
     for vin, vehicle_data in coordinator.data.items():
+        cap_flags = (
+            vehicle_data.capabilities.capability_flags
+            if vehicle_data.capabilities
+            else {}
+        )
         for description in LOCK_DESCRIPTIONS:
+            if (
+                description.required_capability is not None
+                and not cap_flags.get(description.required_capability, False)
+            ):
+                _LOGGER.debug(
+                    "Skipping lock '%s' for %s: capability '%s' disabled",
+                    description.key,
+                    vin[:6] + "...",
+                    description.required_capability,
+                )
+                continue
             if not description.available_fn(vehicle_data):
                 continue
             entities.append(

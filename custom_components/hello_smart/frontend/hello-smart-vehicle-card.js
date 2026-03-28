@@ -73,6 +73,24 @@ class HelloSmartVehicleCard extends HTMLElement {
     // Map of translation_key → entity_id, built from device registry
     this._keyMap = {};
     this._deviceId = null;
+    this._connected = false;
+  }
+
+  connectedCallback() {
+    this._connected = true;
+    // Re-render when attached to DOM — hass may have arrived before connection
+    if (this._hass && this._config.entity) {
+      try {
+        this._buildDeviceEntityMap();
+        this._render();
+      } catch (err) {
+        this._renderError("connectedCallback", err);
+      }
+    }
+  }
+
+  disconnectedCallback() {
+    this._connected = false;
   }
 
   static getStubConfig(hass) {
@@ -103,7 +121,17 @@ class HelloSmartVehicleCard extends HTMLElement {
       show_locks: true,
       ...config,
     };
-    // Auto-detect will happen in the hass setter when hass is available
+    // Show loading placeholder until hass arrives
+    if (!this._hass) {
+      this.shadowRoot.innerHTML = `
+        <ha-card>
+          <div style="padding: 24px; text-align: center; color: var(--secondary-text-color, #aaa);">
+            <ha-icon icon="mdi:car" style="--mdc-icon-size: 32px; opacity: 0.5;"></ha-icon>
+            <p style="margin: 8px 0 0; font-size: 13px;">Loading vehicle status…</p>
+          </div>
+        </ha-card>`;
+      return;
+    }
     try {
       this._render();
     } catch (err) {

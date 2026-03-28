@@ -563,9 +563,87 @@ class SmartAPI:
         base_url = self._get_base_url(account)
         url = f"{base_url}/geelyTCAccess/tcservices/capability/{vin}"
         data = await self._signed_request("GET", url, account)
-        caps = data.get("data", {}).get("capabilities", [])
-        service_ids = [c.get("serviceId", "") for c in caps if c.get("enabled")]
-        return VehicleCapabilities(service_ids=service_ids)
+        inner = data.get("data", {})
+
+        # Primary format: APK model (TscVehicleCapability) with data.list[]
+        cap_list = inner.get("list", [])
+        if cap_list:
+            _LOGGER.debug(
+                "Capability response uses 'list' format (%d entries) for %s",
+                len(cap_list),
+                vin[:6] + "...",
+            )
+            capability_flags = {
+                c["functionId"]: c.get("valueEnable", False)
+                for c in cap_list
+                if c.get("functionId")
+            }
+
+            # The API may return v2 capability IDs (with _2 suffix or
+            # renamed keys) while the APK FunctionId constants use v1
+            # names.  Propagate v2 values to their v1 aliases so entity
+            # filtering works regardless of API version.
+            _V2_TO_V1: dict[str, list[str]] = {
+                "charging_status_2": ["charging_status"],
+                "remote_climate_control_2": [
+                    "remote_air_condition_switch",
+                    "climate_status",
+                ],
+                "curtain_status_2": ["curtain_status"],
+                "sunroof_automatic_close": ["skylight_rolling_status"],
+                "recharge_lid_status_2": ["recharge_lid_status"],
+                "remote_control_lock_2": ["remote_control_lock"],
+                "remote_control_unlock_2": ["remote_control_unlock"],
+                "remote_control_window_2": [
+                    "remote_window_close",
+                    "remote_window_open",
+                ],
+                "remote_control_ventilate_2": ["seat_ventilation_status"],
+                "tire_pressure_warning_2": ["tyre_pressure"],
+            }
+            for v2_key, v1_aliases in _V2_TO_V1.items():
+                if v2_key in capability_flags:
+                    for v1_key in v1_aliases:
+                        capability_flags.setdefault(v1_key, capability_flags[v2_key])
+
+            # IDs with no v2 equivalent in the API: assume enabled when
+            # the broader feature category is present.
+            # - remote_control_fragrance: enabled if fragrance warning exists
+            # - remote_seat_preheat_switch: enabled if climate control exists
+            # - remote_trunk_open: enabled if trunk_status exists
+            _INFER: dict[str, str] = {
+                "remote_control_fragrance": "fragrance_exhausted_warning_2",
+                "remote_seat_preheat_switch": "remote_climate_control_2",
+                "remote_trunk_open": "trunk_status",
+            }
+            for v1_key, indicator in _INFER.items():
+                if v1_key not in capability_flags and indicator in capability_flags:
+                    capability_flags[v1_key] = capability_flags[indicator]
+
+            # Also extract service_ids if present in this format
+            service_ids = [
+                c.get("serviceId", "")
+                for c in cap_list
+                if c.get("serviceId") and c.get("enabled")
+            ]
+            return VehicleCapabilities(
+                service_ids=service_ids,
+                capability_flags=capability_flags,
+            )
+
+        # Fallback: legacy format with data.capabilities[]
+        caps = inner.get("capabilities", [])
+        if caps:
+            _LOGGER.debug(
+                "Capability response uses 'capabilities' format (%d entries) for %s",
+                len(caps),
+                vin[:6] + "...",
+            )
+            service_ids = [c.get("serviceId", "") for c in caps if c.get("enabled")]
+            return VehicleCapabilities(service_ids=service_ids)
+
+        _LOGGER.debug("Capability response empty for %s", vin[:6] + "...")
+        return VehicleCapabilities()
 
     async def async_get_energy_ranking(
         self, account: Account, vin: str,
@@ -1074,16 +1152,49 @@ class SmartAPI:
         light_flash = _safe_bool(running_status.get("flash"))
 
         # ── Climate detailed ────────────────────────────────────────────
+        # Position value 101 is a sentinel meaning "not equipped".
+        # Normalise to None so entities show as unavailable.
+        _NOT_EQUIPPED = 101
+
         window_position_driver = _safe_int(climate_raw.get("winPosDriver"))
+        if window_position_driver == _NOT_EQUIPPED:
+            window_position_driver = None
         window_position_passenger = _safe_int(climate_raw.get("winPosPassenger"))
-        window_position_driver_rear = _safe_int(climate_raw.get("winPosDriverRear"))
-        window_position_passenger_rear = _safe_int(climate_raw.get("winPosPassengerRear"))
+        if window_position_passenger == _NOT_EQUIPPED:
+            window_position_passenger = None
+        window_position_driver_rear = _safe_int(
+            climate_raw.get("winPosDriverRear")
+        )
+        if window_position_driver_rear == _NOT_EQUIPPED:
+            window_position_driver_rear = None
+        window_position_passenger_rear = _safe_int(
+            climate_raw.get("winPosPassengerRear")
+        )
+        if window_position_passenger_rear == _NOT_EQUIPPED:
+            window_position_passenger_rear = None
+
         sunroof_position = _safe_int(climate_raw.get("sunroofPos"))
-        sunroof_open = _safe_bool(climate_raw.get("sunroofOpenStatus"))
+        if sunroof_position == _NOT_EQUIPPED:
+            sunroof_position = None
+            sunroof_open = None
+        else:
+            sunroof_open = _safe_bool(climate_raw.get("sunroofOpenStatus"))
+
         sun_curtain_rear_position = _safe_int(climate_raw.get("sunCurtainRearPos"))
-        sun_curtain_rear_open = _safe_bool(climate_raw.get("sunCurtainRearOpenStatus"))
+        if sun_curtain_rear_position == _NOT_EQUIPPED:
+            sun_curtain_rear_position = None
+            sun_curtain_rear_open = None
+        else:
+            sun_curtain_rear_open = _safe_bool(
+                climate_raw.get("sunCurtainRearOpenStatus")
+            )
+
         curtain_position = _safe_int(climate_raw.get("curtainPos"))
-        curtain_open = _safe_bool(climate_raw.get("curtainOpenStatus"))
+        if curtain_position == _NOT_EQUIPPED:
+            curtain_position = None
+            curtain_open = None
+        else:
+            curtain_open = _safe_bool(climate_raw.get("curtainOpenStatus"))
         driver_seat_heating = _safe_int(climate_raw.get("drvHeatSts"))
         passenger_seat_heating = _safe_int(climate_raw.get("passHeatingSts"))
         rear_left_seat_heating = _safe_int(climate_raw.get("rlHeatingSts"))

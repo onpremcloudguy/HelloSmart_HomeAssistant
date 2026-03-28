@@ -17,10 +17,10 @@ views:
       - type: custom:mushroom-template-card
         primary: Smart #3
         secondary: >-
-          {{ states('sensor.smart_234118_power_mode') | title }}
-          · {{ 'Online' if is_state('binary_sensor.smart_234118_telematics_connected', 'on') else 'Offline' }}
+          {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_power_mode') | title }}
+          · {{ 'Online' if is_state('binary_sensor.cm590_hc11_performance_4wd_rhd_apac_vehicle_online', 'on') else 'Offline' }}
         icon: mdi:car
-        entity: binary_sensor.smart_234118_telematics_connected
+        entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_vehicle_online
         picture: /local/hello_smart/HESCA2C42RS234118_side.png
         layout: horizontal
         card_mod:
@@ -37,22 +37,22 @@ views:
       - type: custom:mushroom-chips-card
         chips:
           - type: entity
-            entity: lock.smart_234118_smart_door_lock
+            entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_driver_door_lock
             icon: >-
-              {{ 'mdi:lock' if is_state('lock.smart_234118_smart_door_lock', 'locked') else 'mdi:lock-open' }}
+              {{ 'mdi:lock' if is_state('binary_sensor.cm590_hc11_performance_4wd_rhd_apac_driver_door_lock', 'locked') else 'mdi:lock-open' }}
             content_info: name
           - type: entity
-            entity: sensor.smart_234118_charging_status
+            entity: sensor.cm590_hc11_performance_4wd_rhd_apac_charging_status
             icon: mdi:ev-station
             content_info: state
           - type: entity
-            entity: sensor.smart_234118_power_mode
+            entity: sensor.cm590_hc11_performance_4wd_rhd_apac_power_mode
             icon: mdi:power
             content_info: state
           - type: entity
-            entity: binary_sensor.smart_234118_telematics_connected
+            entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_vehicle_online
             icon: >-
-              {{ 'mdi:wifi' if is_state('binary_sensor.smart_234118_telematics_connected', 'on') else 'mdi:wifi-off' }}
+              {{ 'mdi:wifi' if is_state('binary_sensor.cm590_hc11_performance_4wd_rhd_apac_vehicle_online', 'on') else 'mdi:wifi-off' }}
             content_info: name
         card_mod:
           style: |
@@ -77,11 +77,11 @@ views:
       - type: custom:mushroom-template-card
         primary: Battery Level
         secondary: >-
-          {{ states('sensor.smart_234118_battery_level') }}%
+          {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_battery_level') }}%
         icon: mdi:battery
-        entity: sensor.smart_234118_battery_level
+        entity: sensor.cm590_hc11_performance_4wd_rhd_apac_battery_level
         icon_color: >-
-          {% set level = states('sensor.smart_234118_battery_level') | int(0) %}
+          {% set level = states('sensor.cm590_hc11_performance_4wd_rhd_apac_battery_level') | int(0) %}
           {% if level > 60 %}green
           {% elif level > 20 %}orange
           {% else %}red{% endif %}
@@ -95,10 +95,10 @@ views:
             }
       - type: entities
         entities:
-          - entity: sensor.smart_234118_range_remaining
+          - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_estimated_range
             name: Range Remaining
             icon: mdi:map-marker-distance
-          - entity: sensor.smart_234118_range_at_full_charge
+          - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_range_at_full_charge
             name: Range at Full Charge
             icon: mdi:map-marker-check
         card_mod:
@@ -126,7 +126,7 @@ views:
       - type: vertical-stack
         cards:
           - type: custom:mushroom-entity-card
-            entity: sensor.smart_234118_charging_status
+            entity: sensor.cm590_hc11_performance_4wd_rhd_apac_charging_status
             name: Charging Status
             icon: mdi:ev-station
             card_mod:
@@ -140,15 +140,15 @@ views:
           - type: custom:mushroom-chips-card
             chips:
               - type: entity
-                entity: binary_sensor.smart_234118_charger_connected
+                entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_charger
                 icon: mdi:power-plug
                 content_info: name
               - type: entity
-                entity: binary_sensor.smart_234118_charge_lid_ac
+                entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_ac_charge_lid
                 icon: mdi:ev-plug-type2
                 content_info: name
               - type: entity
-                entity: binary_sensor.smart_234118_charge_lid_dc
+                entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_dc_charge_lid
                 icon: mdi:ev-plug-ccs2
                 content_info: name
             card_mod:
@@ -159,19 +159,19 @@ views:
                 }
           - type: entities
             entities:
-              - entity: sensor.smart_234118_charge_voltage
+              - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_charging_voltage
                 name: Voltage
                 icon: mdi:flash
-              - entity: sensor.smart_234118_charge_current
+              - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_charging_current
                 name: AC Current
                 icon: mdi:current-ac
-              - entity: sensor.smart_234118_dc_charge_current
+              - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_dc_charging_current
                 name: DC Current
                 icon: mdi:current-dc
-              - entity: sensor.smart_234118_charging_power
+              - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_charging_power
                 name: Power
                 icon: mdi:lightning-bolt
-              - entity: sensor.smart_234118_time_to_full
+              - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_time_to_full_charge
                 name: Time to Full
                 icon: mdi:timer-sand
             card_mod:
@@ -183,7 +183,7 @@ views:
                   --secondary-text-color: #B3B3B3;
                 }
           - type: custom:mushroom-entity-card
-            entity: number.smart_234118_smart_target_soc
+            entity: number.cm590_hc11_performance_4wd_rhd_apac_charge_target
             name: Target SOC
             icon: mdi:battery-charging-high
             card_mod:
@@ -196,16 +196,16 @@ views:
                 }
           - type: entities
             entities:
-              - entity: sensor.smart_234118_charging_schedule_status
+              - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_scheduled_charging
                 name: Schedule Status
                 icon: mdi:calendar-clock
-              - entity: sensor.smart_234118_charging_target_soc
+              - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_charge_target
                 name: Schedule Target SOC
                 icon: mdi:battery-heart
-              - entity: time.smart_234118_smart_charging_start
+              - entity: time.cm590_hc11_performance_4wd_rhd_apac_charging_start_time
                 name: Charging Start Time
                 icon: mdi:clock-start
-              - entity: time.smart_234118_smart_charging_end
+              - entity: time.cm590_hc11_performance_4wd_rhd_apac_charging_end_time
                 name: Charging End Time
                 icon: mdi:clock-end
             card_mod:
@@ -217,7 +217,7 @@ views:
                   --secondary-text-color: #B3B3B3;
                 }
           - type: custom:mushroom-entity-card
-            entity: switch.smart_234118_smart_charging
+            entity: switch.cm590_hc11_performance_4wd_rhd_apac_charging
             name: Charging
             icon: mdi:ev-station
             card_mod:
@@ -244,8 +244,8 @@ views:
             }
       - type: vertical-stack
         cards:
-          - type: custom:mushroom-lock-card
-            entity: lock.smart_234118_smart_door_lock
+          - type: custom:mushroom-entity-card
+            entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_driver_door_lock
             name: Door Lock
             card_mod:
               style: |
@@ -256,7 +256,7 @@ views:
                   --secondary-text-color: #B3B3B3;
                 }
           - type: custom:hello-smart-vehicle-card
-            entity: binary_sensor.smart_234118_driver_door
+            entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_driver_door
             show_windows: true
             show_locks: true
 
@@ -280,34 +280,34 @@ views:
               - type: custom:mushroom-template-card
                 primary: Front Left
                 secondary: >-
-                  {{ states('sensor.smart_234118_tyre_pressure_fl') }} kPa
-                  · {{ states('sensor.smart_234118_tyre_temp_fl') }}°C
+                  {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_pressure_front_rightont_left') }} kPa
+                  · {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_temperature_front_left') }}°C
                 icon: mdi:tire
-                entity: binary_sensor.smart_234118_tyre_warning_fl
+                entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_warning_front_rightont_left
                 icon_color: >-
-                  {{ 'red' if is_state('binary_sensor.smart_234118_tyre_warning_fl', 'on') else 'green' }}
+                  {{ 'red' if is_state('binary_sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_warning_front_rightont_left', 'on') else 'green' }}
                 card_mod:
                   style: |
                     ha-card {
                       background: #1E1E1E;
-                      border: 1px solid {{ '#F44336' if is_state('binary_sensor.smart_234118_tyre_warning_fl', 'on') else '#333' }};
+                      border: 1px solid {{ '#F44336' if is_state('binary_sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_warning_front_rightont_left', 'on') else '#333' }};
                       --primary-text-color: #FFFFFF;
                       --secondary-text-color: #B3B3B3;
                     }
               - type: custom:mushroom-template-card
                 primary: Front Right
                 secondary: >-
-                  {{ states('sensor.smart_234118_tyre_pressure_fr') }} kPa
-                  · {{ states('sensor.smart_234118_tyre_temp_fr') }}°C
+                  {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_pressure_front_right') }} kPa
+                  · {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_temperature_front_right') }}°C
                 icon: mdi:tire
-                entity: binary_sensor.smart_234118_tyre_warning_fr
+                entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_warning_front_right
                 icon_color: >-
-                  {{ 'red' if is_state('binary_sensor.smart_234118_tyre_warning_fr', 'on') else 'green' }}
+                  {{ 'red' if is_state('binary_sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_warning_front_right', 'on') else 'green' }}
                 card_mod:
                   style: |
                     ha-card {
                       background: #1E1E1E;
-                      border: 1px solid {{ '#F44336' if is_state('binary_sensor.smart_234118_tyre_warning_fr', 'on') else '#333' }};
+                      border: 1px solid {{ '#F44336' if is_state('binary_sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_warning_front_right', 'on') else '#333' }};
                       --primary-text-color: #FFFFFF;
                       --secondary-text-color: #B3B3B3;
                     }
@@ -316,34 +316,34 @@ views:
               - type: custom:mushroom-template-card
                 primary: Rear Left
                 secondary: >-
-                  {{ states('sensor.smart_234118_tyre_pressure_rl') }} kPa
-                  · {{ states('sensor.smart_234118_tyre_temp_rl') }}°C
+                  {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_pressure_rear_left') }} kPa
+                  · {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_temperature_rear_left') }}°C
                 icon: mdi:tire
-                entity: binary_sensor.smart_234118_tyre_warning_rl
+                entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_warning_rear_left
                 icon_color: >-
-                  {{ 'red' if is_state('binary_sensor.smart_234118_tyre_warning_rl', 'on') else 'green' }}
+                  {{ 'red' if is_state('binary_sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_warning_rear_left', 'on') else 'green' }}
                 card_mod:
                   style: |
                     ha-card {
                       background: #1E1E1E;
-                      border: 1px solid {{ '#F44336' if is_state('binary_sensor.smart_234118_tyre_warning_rl', 'on') else '#333' }};
+                      border: 1px solid {{ '#F44336' if is_state('binary_sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_warning_rear_left', 'on') else '#333' }};
                       --primary-text-color: #FFFFFF;
                       --secondary-text-color: #B3B3B3;
                     }
               - type: custom:mushroom-template-card
                 primary: Rear Right
                 secondary: >-
-                  {{ states('sensor.smart_234118_tyre_pressure_rr') }} kPa
-                  · {{ states('sensor.smart_234118_tyre_temp_rr') }}°C
+                  {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_pressure_rear_right') }} kPa
+                  · {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_temperature_rear_right') }}°C
                 icon: mdi:tire
-                entity: binary_sensor.smart_234118_tyre_warning_rr
+                entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_warning_rear_right
                 icon_color: >-
-                  {{ 'red' if is_state('binary_sensor.smart_234118_tyre_warning_rr', 'on') else 'green' }}
+                  {{ 'red' if is_state('binary_sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_warning_rear_right', 'on') else 'green' }}
                 card_mod:
                   style: |
                     ha-card {
                       background: #1E1E1E;
-                      border: 1px solid {{ '#F44336' if is_state('binary_sensor.smart_234118_tyre_warning_rr', 'on') else '#333' }};
+                      border: 1px solid {{ '#F44336' if is_state('binary_sensor.cm590_hc11_performance_4wd_rhd_apac_tyre_warning_rear_right', 'on') else '#333' }};
                       --primary-text-color: #FFFFFF;
                       --secondary-text-color: #B3B3B3;
                     }
@@ -364,11 +364,11 @@ views:
       - type: vertical-stack
         cards:
           - type: custom:mushroom-entity-card
-            entity: binary_sensor.smart_234118_driver_window
+            entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_driver_window
             name: Driver Window
             icon: mdi:car-door
             secondary_info: >-
-              Position: {{ states('sensor.smart_234118_window_position_driver') }}%
+              Position: {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_driver_window_position') }}%
             card_mod:
               style: |
                 ha-card {
@@ -378,11 +378,11 @@ views:
                   --secondary-text-color: #B3B3B3;
                 }
           - type: custom:mushroom-entity-card
-            entity: binary_sensor.smart_234118_passenger_window
+            entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_passenger_window
             name: Passenger Window
             icon: mdi:car-door
             secondary_info: >-
-              Position: {{ states('sensor.smart_234118_window_position_passenger') }}%
+              Position: {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_passenger_window_position') }}%
             card_mod:
               style: |
                 ha-card {
@@ -392,11 +392,11 @@ views:
                   --secondary-text-color: #B3B3B3;
                 }
           - type: custom:mushroom-entity-card
-            entity: binary_sensor.smart_234118_rear_left_window
+            entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_rear_left_window
             name: Rear Left Window
             icon: mdi:car-door
             secondary_info: >-
-              Position: {{ states('sensor.smart_234118_window_position_driver_rear') }}%
+              Position: {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_rear_left_window_position') }}%
             card_mod:
               style: |
                 ha-card {
@@ -406,11 +406,11 @@ views:
                   --secondary-text-color: #B3B3B3;
                 }
           - type: custom:mushroom-entity-card
-            entity: binary_sensor.smart_234118_rear_right_window
+            entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_rear_right_window
             name: Rear Right Window
             icon: mdi:car-door
             secondary_info: >-
-              Position: {{ states('sensor.smart_234118_window_position_passenger_rear') }}%
+              Position: {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_rear_right_window_position') }}%
             card_mod:
               style: |
                 ha-card {
@@ -419,22 +419,27 @@ views:
                   --primary-text-color: #FFFFFF;
                   --secondary-text-color: #B3B3B3;
                 }
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_sunroof
+                state_not: unavailable
+            card:
+              type: custom:mushroom-entity-card
+              entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_sunroof
+              name: Sunroof
+              icon: mdi:car-select
+              secondary_info: >-
+                Position: {{ states('sensor.cm590_hc11_performance_4wd_rhd_apac_sunroof_position') }}%
+              card_mod:
+                style: |
+                  ha-card {
+                    background: #1E1E1E;
+                    border: 1px solid #333;
+                    --primary-text-color: #FFFFFF;
+                    --secondary-text-color: #B3B3B3;
+                  }
           - type: custom:mushroom-entity-card
-            entity: binary_sensor.smart_234118_sunroof_open
-            name: Sunroof
-            icon: mdi:car-select
-            secondary_info: >-
-              Position: {{ states('sensor.smart_234118_sunroof_position') }}%
-            card_mod:
-              style: |
-                ha-card {
-                  background: #1E1E1E;
-                  border: 1px solid #333;
-                  --primary-text-color: #FFFFFF;
-                  --secondary-text-color: #B3B3B3;
-                }
-          - type: custom:mushroom-entity-card
-            entity: button.smart_234118_smart_close_windows
+            entity: button.cm590_hc11_performance_4wd_rhd_apac_close_windows
             name: Close All Windows
             icon: mdi:window-closed
             tap_action:
@@ -464,7 +469,7 @@ views:
       - type: vertical-stack
         cards:
           - type: custom:mushroom-entity-card
-            entity: sensor.smart_234118_odometer
+            entity: sensor.cm590_hc11_performance_4wd_rhd_apac_odometer
             name: Odometer
             icon: mdi:counter
             card_mod:
@@ -478,15 +483,15 @@ views:
           - type: custom:mushroom-chips-card
             chips:
               - type: entity
-                entity: sensor.smart_234118_days_to_service
+                entity: sensor.cm590_hc11_performance_4wd_rhd_apac_service_due_in
                 icon: mdi:calendar-clock
                 content_info: state
               - type: entity
-                entity: sensor.smart_234118_distance_to_service
+                entity: sensor.cm590_hc11_performance_4wd_rhd_apac_service_due_distance
                 icon: mdi:road-variant
                 content_info: state
               - type: entity
-                entity: sensor.smart_234118_engine_hours_to_service
+                entity: sensor.cm590_hc11_performance_4wd_rhd_apac_engine_hours_to_service
                 icon: mdi:engine
                 content_info: state
             card_mod:
@@ -496,7 +501,7 @@ views:
                   --chip-border-color: #444;
                 }
           - type: custom:mushroom-entity-card
-            entity: sensor.smart_234118_service_warning
+            entity: sensor.cm590_hc11_performance_4wd_rhd_apac_service_warning
             name: Service Warning
             icon: mdi:alert-circle
             card_mod:
@@ -510,13 +515,13 @@ views:
           - type: entities
             title: Fluid Levels
             entities:
-              - entity: binary_sensor.smart_234118_washer_fluid_low
+              - entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_washer_fluid
                 name: Washer Fluid
                 icon: mdi:wiper-wash
-              - entity: binary_sensor.smart_234118_brake_fluid_ok
+              - entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_brake_fluid
                 name: Brake Fluid
                 icon: mdi:car-brake-fluid-level
-              - entity: sensor.smart_234118_engine_coolant_level
+              - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_coolant_level
                 name: Engine Coolant
                 icon: mdi:coolant-temperature
             card_mod:
@@ -530,13 +535,13 @@ views:
           - type: entities
             title: Firmware
             entities:
-              - entity: sensor.smart_234118_current_firmware_version
+              - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_firmware_version
                 name: Current Firmware
                 icon: mdi:cellphone-arrow-down
-              - entity: sensor.smart_234118_target_firmware_version
+              - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_available_firmware_version
                 name: Target Firmware
                 icon: mdi:cellphone-arrow-up
-              - entity: binary_sensor.smart_234118_update_available
+              - entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_firmware_update_available
                 name: Update Available
                 icon: mdi:update
             card_mod:
@@ -550,10 +555,10 @@ views:
           - type: entities
             title: Diagnostics
             entities:
-              - entity: sensor.smart_234118_diagnostic_status
+              - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_diagnostic_status
                 name: Diagnostic Status
                 icon: mdi:stethoscope
-              - entity: sensor.smart_234118_diagnostic_code
+              - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_diagnostic_trouble_code
                 name: Diagnostic Code
                 icon: mdi:barcode
             card_mod:
