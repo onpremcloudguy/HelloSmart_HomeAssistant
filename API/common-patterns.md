@@ -173,3 +173,175 @@ ota.srv.smart.com
 ```
 
 Only HTTPS requests are permitted. Requests to unlisted hosts are rejected with `SmartAPIError`.
+
+---
+
+## Vehicle Commands (PUT)
+
+Vehicle control commands are sent via PUT to the telematics endpoint:
+
+```http
+PUT {base_url}/remote-control/vehicle/telematics/{vin}
+```
+
+Headers: Standard [signed headers](#required-headers) with `authorization` token. The request body must be serialised with **no spaces** (`json.dumps(payload, separators=(",",":"))`).
+
+### Command Payload Envelope
+
+```json
+{
+  "creator": "tc",
+  "command": "start",
+  "serviceId": "RDL_2",
+  "timestamp": "1706028240000",
+  "operationScheduling": {
+    "duration": 6,
+    "interval": 0,
+    "occurs": 1,
+    "recurrentOperation": false
+  },
+  "serviceParameters": [
+    {"key": "param.name", "value": "param_value"}
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `creator` | string | Always `"tc"` |
+| `command` | string | `"start"` or `"stop"` |
+| `serviceId` | string | Service identifier (see table below) |
+| `timestamp` | string | Epoch milliseconds |
+| `operationScheduling.duration` | int | Command duration in minutes |
+| `operationScheduling.interval` | int | Always `0` |
+| `operationScheduling.occurs` | int | Always `1` |
+| `operationScheduling.recurrentOperation` | bool/int | `false` (or `0` for charging) |
+| `serviceParameters` | array | Key/value pairs specific to each service |
+
+> **Charging exception**: The `rcs` service uses `"timeStamp"` (camelCase) and `"recurrentOperation": 0` (integer) instead of the standard `"timestamp"` and `false`.
+
+### Service IDs & Parameters
+
+#### Door Lock / Unlock
+
+| Service ID | Command | Parameters | Description |
+|------------|---------|------------|-------------|
+| `RDL_2` | `start` | *(none)* | Lock all doors |
+| `RDU_2` | `start` | *(none)* | Unlock all doors |
+
+#### Climate Control
+
+| Service ID | Command | Parameters | Description |
+|------------|---------|------------|-------------|
+| `RCE_2` | `start` | `rce.conditioner=1`, `rce.temp={temp}` | Start HVAC at target temperature |
+| `RCE_2` | `stop` | `rce.conditioner=1` | Stop HVAC |
+
+- Temperature is in °C as a string (e.g., `"22"`)
+- Default duration is 30 minutes
+
+#### Seat Heating
+
+| Service ID | Command | Parameters | Description |
+|------------|---------|------------|-------------|
+| `RSH` | `start` | `rsh.seat={seat}`, `rsh.level={level}` | Set seat heating level |
+
+**Seat keys**: `front-left`, `front-right`, `steering_wheel`
+
+**Level values**: `0` (off), `1` (low), `2` (medium), `3` (high)
+
+#### Seat Ventilation
+
+| Service ID | Command | Parameters | Description |
+|------------|---------|------------|-------------|
+| `RSV` | `start` | `rsv.seat={seat}`, `rsv.level={level}` | Set seat ventilation level |
+
+**Seat keys**: `front-left`
+
+**Level values**: `0` (off), `1` (low), `2` (medium), `3` (high)
+
+#### Horn & Lights (Find My Car)
+
+| Service ID | Command | Parameters | Description |
+|------------|---------|------------|-------------|
+| `RHL` | `start` | `rhl.horn=1` | Sound horn |
+| `RHL` | `start` | `rhl.flash=1` | Flash lights |
+| `RHL` | `start` | `rhl.horn=1`, `rhl.flash=1` | Find my car (horn + flash) |
+
+#### Windows
+
+| Service ID | Command | Parameters | Description |
+|------------|---------|------------|-------------|
+| `RWS_2` | `start` | `rws.close=1` | Close all windows |
+
+#### Charging
+
+| Service ID | Command | Parameters | Description |
+|------------|---------|------------|-------------|
+| `rcs` | `start` | `operation=1`, `rcs.restart=1` | Start charging |
+| `rcs` | `start` | `operation=0`, `rcs.terminate=1` | Stop charging |
+
+> Note: Charging uses `command: "start"` for **both** start and stop — the `operation` parameter controls the action.
+
+#### Mini-Fridge
+
+| Service ID | Command | Parameters | Description |
+|------------|---------|------------|-------------|
+| `UFR` | `start` | `ufr.status=1` | Turn on fridge |
+| `UFR` | `stop` | `ufr.status=0` | Turn off fridge |
+
+#### Fragrance Diffuser
+
+| Service ID | Command | Parameters | Description |
+|------------|---------|------------|-------------|
+| `RFD_2` | `start` | `rfd.status=1` | Turn on fragrance |
+| `RFD_2` | `stop` | `rfd.status=0` | Turn off fragrance |
+
+#### Vehicle Tracking (VTM)
+
+| Service ID | Command | Parameters | Description |
+|------------|---------|------------|-------------|
+| `VTM` | `start` | `vtm.enabled=1` | Enable vehicle tracking |
+| `VTM` | `stop` | `vtm.enabled=0` | Disable vehicle tracking |
+
+#### Locker
+
+| Service ID | Command | Parameters | Description |
+|------------|---------|------------|-------------|
+| `RPC` | `start` | `rpc.lock=1` | Lock storage locker |
+| `RPC` | `start` | `rpc.unlock=1` | Unlock storage locker |
+
+### Command Response
+
+```json
+{
+  "code": 1000,
+  "data": { ... },
+  "success": true,
+  "message": "operation succeed"
+}
+```
+
+The integration checks top-level `success` first, then falls back to `data.success`.
+
+### Command Flow
+
+1. **Select vehicle** — `POST /device-platform/user/session/update` with the target VIN
+2. **Send command** — `PUT /remote-control/vehicle/telematics/{vin}` with the payload
+3. **Cooldown** — 5-second per-VIN cooldown between commands
+4. **Delayed refresh** — 8-second delay before polling for updated state
+
+### Charging Reservation (PUT)
+
+```http
+PUT {base_url}/remote-control/charging/reservation/{vin}
+```
+
+Updates the scheduled charging configuration. Body is the updated reservation object — see [Charging Reservation](endpoints/charging-reservation.md).
+
+### Climate Schedule (PUT)
+
+```http
+PUT {base_url}/remote-control/schedule/{vin}
+```
+
+Updates the climate pre-conditioning schedule. Body is the updated schedule object — see [Climate Schedule](endpoints/climate-schedule.md).

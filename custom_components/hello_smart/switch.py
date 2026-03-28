@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from typing import Any
@@ -12,9 +13,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, SERVICE_ID_CHARGING, SERVICE_ID_FRIDGE
+from .const import DOMAIN, FUNCTION_ID_CHARGING_RESERVATION, FUNCTION_ID_FRAGRANCE, SERVICE_ID_CHARGING, SERVICE_ID_FRIDGE
 from .coordinator import SmartDataCoordinator
 from .models import ChargingState, VehicleData
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -25,6 +28,7 @@ class SmartSwitchEntityDescription(SwitchEntityDescription):
     turn_off_fn: Callable[[SmartDataCoordinator, str], Coroutine[Any, Any, None]]
     is_on_fn: Callable[[VehicleData], bool | None]
     available_fn: Callable[[VehicleData], bool]
+    required_capability: str | None = None
 
 
 async def _charging_start(coordinator: SmartDataCoordinator, vin: str) -> None:
@@ -148,6 +152,7 @@ SWITCH_DESCRIPTIONS: list[SmartSwitchEntityDescription] = [
         turn_off_fn=_fragrance_off,
         is_on_fn=lambda data: data.fragrance.active if data.fragrance else None,
         available_fn=lambda data: data.fragrance is not None,
+        required_capability=FUNCTION_ID_FRAGRANCE,
     ),
     SmartSwitchEntityDescription(
         key="smart_vtm",
@@ -166,6 +171,7 @@ SWITCH_DESCRIPTIONS: list[SmartSwitchEntityDescription] = [
         turn_off_fn=_climate_schedule_off,
         is_on_fn=lambda data: data.climate_schedule.enabled if data.climate_schedule else None,
         available_fn=lambda data: data.climate_schedule is not None,
+        required_capability=FUNCTION_ID_CHARGING_RESERVATION,
     ),
 ]
 
@@ -180,7 +186,23 @@ async def async_setup_entry(
 
     entities: list[SmartSwitch] = []
     for vin, vehicle_data in coordinator.data.items():
+        cap_flags = (
+            vehicle_data.capabilities.capability_flags
+            if vehicle_data.capabilities
+            else {}
+        )
         for description in SWITCH_DESCRIPTIONS:
+            if (
+                description.required_capability is not None
+                and not cap_flags.get(description.required_capability, False)
+            ):
+                _LOGGER.debug(
+                    "Skipping switch '%s' for %s: capability '%s' disabled",
+                    description.key,
+                    vin[:6] + "...",
+                    description.required_capability,
+                )
+                continue
             if not description.available_fn(vehicle_data):
                 continue
             entities.append(

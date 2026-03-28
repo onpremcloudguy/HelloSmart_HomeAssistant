@@ -1,14 +1,12 @@
 # Smart Vehicle Cloud API Reference
 
-Complete documentation of all GET API endpoints consumed by the Hello Smart Home Assistant integration. These endpoints are reverse-engineered from the Smart mobile app APKs (EU and INTL variants) and validated against the live API.
-
-> **Read-only endpoints only.** POST/PUT command endpoints (lock, unlock, climate control, etc.) are not yet implemented.
+Complete documentation of all API endpoints consumed by the Hello Smart Home Assistant integration. These endpoints are reverse-engineered from the Smart mobile app APKs (EU and INTL variants) and validated against the live API.
 
 ---
 
 ## Quick Reference
 
-- [Common Patterns](common-patterns.md) — Base URLs, request signing, response envelope, error codes, data types
+- [Common Patterns](common-patterns.md) — Base URLs, request signing, response envelope, error codes, command controls
 
 ---
 
@@ -93,6 +91,25 @@ Complete documentation of all GET API endpoints consumed by the Hello Smart Home
 |----------|--------|------|-------------|
 | [OTA Info](endpoints/ota-info.md) | GET | `https://ota.srv.smart.com/app/info/{vin}` | Firmware versions (different host) |
 | [FOTA Notification](endpoints/fota-notification.md) | GET | `/fota/geea/assignment/notification` | Pending update notifications |
+
+### Vehicle Commands
+
+| Service | Method | Service ID | Description |
+|---------|--------|------------|-------------|
+| Door Lock | PUT | `RDL_2` | Lock all doors |
+| Door Unlock | PUT | `RDU_2` | Unlock all doors |
+| Climate Start/Stop | PUT | `RCE_2` | HVAC pre-conditioning |
+| Seat Heating | PUT | `RSH` | Set seat heater level |
+| Seat Ventilation | PUT | `RSV` | Set seat vent level |
+| Horn & Lights | PUT | `RHL` | Horn, flash, find my car |
+| Window Close | PUT | `RWS_2` | Close all windows |
+| Charging Start/Stop | PUT | `rcs` | Start or stop charging |
+| Mini-Fridge | PUT | `UFR` | Fridge on/off |
+| Fragrance | PUT | `RFD_2` | Fragrance diffuser on/off |
+| Vehicle Tracking | PUT | `VTM` | VTM on/off |
+| Locker | PUT | `RPC` | Lock/unlock storage locker |
+
+> All commands are sent via `PUT /remote-control/vehicle/telematics/{vin}`. See [Command Controls](common-patterns.md#vehicle-commands-put) for payload structure and parameters.
 
 ---
 

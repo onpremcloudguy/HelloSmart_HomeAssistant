@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from datetime import time as dt_time
@@ -13,9 +14,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, FUNCTION_ID_CHARGING_RESERVATION
 from .coordinator import SmartDataCoordinator
 from .models import VehicleData
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -27,6 +30,7 @@ class SmartTimeEntityDescription(TimeEntityDescription):
     ]
     native_value_fn: Callable[[VehicleData], dt_time | None]
     available_fn: Callable[[VehicleData], bool]
+    required_capability: str | None = None
 
 
 def _parse_time_str(time_str: str) -> dt_time | None:
@@ -97,6 +101,7 @@ TIME_DESCRIPTIONS: list[SmartTimeEntityDescription] = [
         if data.charging_reservation
         else None,
         available_fn=lambda data: data.charging_reservation is not None,
+        required_capability=FUNCTION_ID_CHARGING_RESERVATION,
     ),
     SmartTimeEntityDescription(
         key="smart_charging_end",
@@ -109,6 +114,7 @@ TIME_DESCRIPTIONS: list[SmartTimeEntityDescription] = [
         if data.charging_reservation
         else None,
         available_fn=lambda data: data.charging_reservation is not None,
+        required_capability=FUNCTION_ID_CHARGING_RESERVATION,
     ),
     SmartTimeEntityDescription(
         key="smart_climate_schedule_time",
@@ -135,7 +141,23 @@ async def async_setup_entry(
 
     entities: list[SmartTime] = []
     for vin, vehicle_data in coordinator.data.items():
+        cap_flags = (
+            vehicle_data.capabilities.capability_flags
+            if vehicle_data.capabilities
+            else {}
+        )
         for description in TIME_DESCRIPTIONS:
+            if (
+                description.required_capability is not None
+                and not cap_flags.get(description.required_capability, False)
+            ):
+                _LOGGER.debug(
+                    "Skipping time '%s' for %s: capability '%s' disabled",
+                    description.key,
+                    vin[:6] + "...",
+                    description.required_capability,
+                )
+                continue
             if not description.available_fn(vehicle_data):
                 continue
             entities.append(

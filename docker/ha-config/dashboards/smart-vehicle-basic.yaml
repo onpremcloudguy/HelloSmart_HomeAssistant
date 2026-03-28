@@ -246,12 +246,22 @@ views:
           - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_rear_right_window_position
             name: Rear Right Position
             icon: mdi:arrow-up-down
-          - entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_sunroof
-            name: Sunroof
-            icon: mdi:car-select
-          - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_sunroof_position
-            name: Sunroof Position
-            icon: mdi:arrow-up-down
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_sunroof
+                state_not: unavailable
+            row:
+              entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_sunroof
+              name: Sunroof
+              icon: mdi:car-select
+          - type: conditional
+            conditions:
+              - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_sunroof_position
+                state_not: unavailable
+            row:
+              entity: sensor.cm590_hc11_performance_4wd_rhd_apac_sunroof_position
+              name: Sunroof Position
+              icon: mdi:arrow-up-down
           - entity: button.cm590_hc11_performance_4wd_rhd_apac_close_windows
             name: Close All Windows
             icon: mdi:window-closed
@@ -277,7 +287,7 @@ views:
           - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_service_warning
             name: Service Warning
             icon: mdi:alert-circle
-          - entity: sensor.cm590_hc11_performance_4wd_rhd_apac_washer_fluid
+          - entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_washer_fluid
             name: Washer Fluid
             icon: mdi:wiper-wash
           - entity: binary_sensor.cm590_hc11_performance_4wd_rhd_apac_brake_fluid

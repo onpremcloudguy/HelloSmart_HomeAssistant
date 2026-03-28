@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.components.climate import (
@@ -15,8 +16,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, SERVICE_ID_CLIMATE
+from .const import DOMAIN, FUNCTION_ID_CLIMATE, SERVICE_ID_CLIMATE
 from .coordinator import SmartDataCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 MIN_TEMP = 16.0
 MAX_TEMP = 30.0
@@ -32,7 +35,19 @@ async def async_setup_entry(
     coordinator: SmartDataCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     entities: list[SmartClimate] = []
-    for vin in coordinator.data:
+    for vin, vehicle_data in coordinator.data.items():
+        cap_flags = (
+            vehicle_data.capabilities.capability_flags
+            if vehicle_data.capabilities
+            else {}
+        )
+        if not cap_flags.get(FUNCTION_ID_CLIMATE, False):
+            _LOGGER.debug(
+                "Skipping climate entity for %s: capability '%s' disabled",
+                vin[:6] + "...",
+                FUNCTION_ID_CLIMATE,
+            )
+            continue
         entities.append(SmartClimate(coordinator=coordinator, vin=vin))
 
     async_add_entities(entities)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from typing import Any
@@ -9,12 +10,15 @@ from typing import Any
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, SERVICE_ID_SEAT_HEAT, SERVICE_ID_SEAT_VENT
+from .const import DOMAIN, FUNCTION_ID_SEAT_HEAT, FUNCTION_ID_SEAT_VENT, SERVICE_ID_SEAT_HEAT, SERVICE_ID_SEAT_VENT
 from .coordinator import SmartDataCoordinator
-from .models import VehicleData
+from .models import VehicleData, VehicleEdition
+
+_LOGGER = logging.getLogger(__name__)
 
 SEAT_HEAT_OPTIONS = ["off", "low", "medium", "high"]
 SEAT_HEAT_LEVEL_MAP = {"off": "0", "low": "1", "medium": "2", "high": "3"}
@@ -34,6 +38,8 @@ class SmartSelectEntityDescription(SelectEntityDescription):
     ]
     current_option_fn: Callable[[VehicleData], str | None]
     seat_key: str
+    required_capability: str | None = None
+    edition_check: Callable[[VehicleEdition], bool] | None = None
 
 
 async def _set_seat_heat(
@@ -79,6 +85,8 @@ SELECT_DESCRIPTIONS: tuple[SmartSelectEntityDescription, ...] = (
         current_option_fn=lambda data: SEAT_HEAT_REVERSE_MAP.get(
             data.status.driver_seat_heating or 0, "off",
         ),
+        required_capability=FUNCTION_ID_SEAT_HEAT,
+        edition_check=lambda e: e.has_driver_seat_heating,
     ),
     SmartSelectEntityDescription(
         key="passenger_seat_heating_control",
@@ -92,6 +100,8 @@ SELECT_DESCRIPTIONS: tuple[SmartSelectEntityDescription, ...] = (
         current_option_fn=lambda data: SEAT_HEAT_REVERSE_MAP.get(
             data.status.passenger_seat_heating or 0, "off",
         ),
+        required_capability=FUNCTION_ID_SEAT_HEAT,
+        edition_check=lambda e: e.has_driver_seat_heating,
     ),
     SmartSelectEntityDescription(
         key="steering_wheel_heating_control",
@@ -105,6 +115,7 @@ SELECT_DESCRIPTIONS: tuple[SmartSelectEntityDescription, ...] = (
         current_option_fn=lambda data: SEAT_HEAT_REVERSE_MAP.get(
             data.status.steering_wheel_heating or 0, "off",
         ),
+        required_capability=FUNCTION_ID_SEAT_HEAT,
     ),
     # ── Seat Ventilation ────────────────────────────────────────────────
     SmartSelectEntityDescription(
@@ -119,6 +130,7 @@ SELECT_DESCRIPTIONS: tuple[SmartSelectEntityDescription, ...] = (
         current_option_fn=lambda data: SEAT_VENT_REVERSE_MAP.get(
             data.status.driver_seat_ventilation or 0, "off",
         ),
+        required_capability=FUNCTION_ID_SEAT_VENT,
     ),
 )
 
@@ -132,8 +144,36 @@ async def async_setup_entry(
     coordinator: SmartDataCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     entities: list[SmartSelectEntity] = []
-    for vin in coordinator.data:
+    for vin, vehicle_data in coordinator.data.items():
+        cap_flags = (
+            vehicle_data.capabilities.capability_flags
+            if vehicle_data.capabilities
+            else {}
+        )
+        edition = vehicle_data.vehicle.edition
         for description in SELECT_DESCRIPTIONS:
+            if (
+                description.required_capability is not None
+                and not cap_flags.get(description.required_capability, False)
+            ):
+                _LOGGER.debug(
+                    "Skipping select '%s' for %s: capability '%s' disabled",
+                    description.key,
+                    vin[:6] + "...",
+                    description.required_capability,
+                )
+                continue
+            if (
+                description.edition_check is not None
+                and not description.edition_check(edition)
+            ):
+                _LOGGER.debug(
+                    "Skipping select '%s' for %s: not available on %s edition",
+                    description.key,
+                    vin[:6] + "...",
+                    edition.value,
+                )
+                continue
             entities.append(
                 SmartSelectEntity(
                     coordinator=coordinator,
@@ -143,6 +183,20 @@ async def async_setup_entry(
             )
 
     async_add_entities(entities)
+
+    # Clean up stale entity registry entries for filtered-out entities
+    created_unique_ids = {e.unique_id for e in entities}
+    ent_reg = er.async_get(hass)
+    for reg_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+        if (
+            reg_entry.domain == "select"
+            and reg_entry.platform == DOMAIN
+            and reg_entry.unique_id not in created_unique_ids
+        ):
+            _LOGGER.debug(
+                "Removing stale select entity: %s", reg_entry.entity_id,
+            )
+            ent_reg.async_remove(reg_entry.entity_id)
 
 
 class SmartSelectEntity(CoordinatorEntity[SmartDataCoordinator], SelectEntity):

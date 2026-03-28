@@ -55,6 +55,44 @@ Vehicle ignition power state.
 | `on` | `"2"` | Ignition on / ready to drive |
 | `cranking` | `"3"` | Engine starting |
 
+### VehicleModel
+
+Smart vehicle model line, derived from `matCode[0:3]` or `seriesCodeVs`.
+
+Source: APK `VehicleModel.java`, `VehicleInfoConstants.java`
+
+| Value | matCode Prefix | Series Code | Marketing Name |
+|-------|---------------|-------------|----------------|
+| `#1` | `HX1` | `HX11` | Smart #1 (compact SUV) |
+| `#3` | `HC1` | `HC11` | Smart #3 (mid-size SUV) |
+| `#5` | `HY1` | `HY11` | Smart #5 (full-size SUV) |
+| `Unknown` | — | — | Unrecognised model |
+
+### VehicleEdition
+
+Vehicle trim/edition level, derived from `matCode[5:7]`.
+
+Source: APK `VehicleEdition.java`, `ClimateFragment.java`
+
+| Value | matCode[5:7] | Description |
+|-------|-------------|-------------|
+| `Pure` | `80` | Entry-level |
+| `Pro` | `D1` | Mid-range |
+| `Pulse` | `GN` | Mid-range (EU naming) |
+| `Premium` | `D2` | Upper-range |
+| `BRABUS` | `D3` | Performance / top-range |
+| `Launch Edition` | `01` | Limited launch variant |
+| `Unknown` | — | Unrecognised trim code |
+
+#### Feature Availability by Edition
+
+| Property | Method | Pure | Pro | Pulse | Premium | BRABUS | Launch |
+|----------|--------|------|-----|-------|---------|--------|--------|
+| Driver seat heating | `has_driver_seat_heating` | No | Yes | Yes | Yes | Yes | Yes |
+| PM2.5 sensor | `has_pm25` | No | No | Yes | Yes | Yes | Yes |
+
+> These gates are used by the integration to automatically exclude entities that the vehicle hardware doesn't support.
+
 ---
 
 ## Dataclasses
@@ -80,9 +118,30 @@ Vehicle identity information from [List Vehicles](endpoints/list-vehicles.md).
 | Field | Type | Description |
 |-------|------|-------------|
 | `vin` | `str` | Vehicle Identification Number |
-| `model_name` | `str` | Full model name |
+| `model_name` | `str` | Full model name (e.g., `CM590_HC11_Performance_4WD_RHD_APAC`) |
 | `model_year` | `str` | Model year |
-| `series_code` | `str` | Series/variant code |
+| `series_code` | `str` | Series/variant code with region suffix (e.g., `HC11_IL`) |
+| `color_name` | `str` | Paint colour name |
+| `color_code` | `str` | Paint colour code |
+| `model_code` | `str` | Full model code (used by VC endpoint) |
+| `factory_code` | `str` | Factory / production plant code |
+| `mat_code` | `str` | Material code — encodes model and trim |
+| `series_name` | `str` | Series name (e.g., `HC11`) |
+| `vehicle_type` | `str` | Vehicle type identifier |
+| `fuel_tank_capacity` | `str` | Fuel tank capacity (always `"0"` for BEV) |
+| `ihu_platform` | `str` | IHU (infotainment) platform type |
+| `tbox_platform` | `str` | T-Box (telematics) platform type |
+| `plate_no` | `str` | Registration plate number |
+| `engine_no` | `str` | Motor/engine serial number |
+| `default_vehicle` | `bool` | Whether this is the user's primary vehicle |
+| `share_status` | `str` | Share status: `"N"` / `"Y"` |
+
+#### Derived Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `edition` | `VehicleEdition` | Trim level derived from `mat_code[5:7]` |
+| `smart_model` | `VehicleModel` | Model line derived from `mat_code[0:3]` / `series_code` |
 
 ### VehicleStatus
 
@@ -126,6 +185,31 @@ Comprehensive vehicle state from [Full Vehicle Status](endpoints/vehicle-status.
 | `battery_12v_level` | `float` | % | Yes |
 | `power_mode` | `PowerMode` | — | Yes |
 | `last_updated` | `datetime` | — | Yes |
+| `window_position_driver` | `int \| None` | % | Yes |
+| `window_position_passenger` | `int \| None` | % | Yes |
+| `window_position_driver_rear` | `int \| None` | % | Yes |
+| `window_position_passenger_rear` | `int \| None` | % | Yes |
+| `sunroof_position` | `int \| None` | % | Yes |
+| `sunroof_open` | `bool \| None` | — | Yes |
+| `curtain_position` | `int \| None` | % | Yes |
+| `curtain_open` | `bool \| None` | — | Yes |
+| `sun_curtain_rear_position` | `int \| None` | % | Yes |
+| `sun_curtain_rear_open` | `bool \| None` | — | Yes |
+| `driver_seat_heating` | `int \| None` | level | Yes |
+| `passenger_seat_heating` | `int \| None` | level | Yes |
+| `rear_left_seat_heating` | `int \| None` | level | Yes |
+| `rear_right_seat_heating` | `int \| None` | level | Yes |
+| `driver_seat_ventilation` | `int \| None` | level | Yes |
+| `passenger_seat_ventilation` | `int \| None` | level | Yes |
+| `rear_left_seat_ventilation` | `int \| None` | level | Yes |
+| `rear_right_seat_ventilation` | `int \| None` | level | Yes |
+| `steering_wheel_heating` | `int \| None` | level | Yes |
+| `pre_climate_active` | `bool \| None` | — | Yes |
+| `defrost_active` | `bool \| None` | — | Yes |
+| `air_blower_active` | `bool \| None` | — | Yes |
+| `climate_overheat_protection` | `bool \| None` | — | Yes |
+
+> **Note on `None` values**: Position fields (`sunroof_position`, `curtain_position`, `sun_curtain_rear_position`, window positions) return `None` when the API reports the sentinel value `101`, indicating the hardware is not equipped. The corresponding boolean fields (e.g., `sunroof_open`) are also set to `None`. See [Sentinel Values](endpoints/vehicle-status.md#sentinel-value-101-not-equipped).
 
 ### OTAInfo
 
@@ -340,3 +424,29 @@ Vehicle visual configuration and remote control capabilities from the VC service
 | `vehicle_nickname` | `str` | No | User-assigned nickname |
 | `side_logo_light_name` | `str` | No | Side logo light style |
 | `license_plate_number` | `str` | No | Registration plate |
+
+---
+
+### VehicleCapabilities
+
+Vehicle capability flags from the [Capabilities API](endpoints/capabilities.md).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `service_ids` | `list[str]` | Legacy service identifiers where `enabled == true` (backward compat) |
+| `capability_flags` | `dict[str, bool]` | Function ID → enabled mapping from `data.list[].functionId`/`valueEnable` |
+
+The `capability_flags` dict is used by entity platforms to filter entities at setup time. Keys are `functionId` strings (e.g., `"remote_control_lock"`, `"charging_status"`). Values are `True` (enabled) or `False` (disabled).
+
+---
+
+### StaticVehicleData
+
+Cached static vehicle data fetched once per session. Used by `SmartDataCoordinator._static_cache` to avoid re-fetching data that doesn't change between polls.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `capabilities` | `VehicleCapabilities \| None` | Vehicle capability flags |
+| `ability` | `VehicleAbility \| None` | Vehicle visual config and images |
+| `plant_no` | `str` | Plant number for device info |
+| `vehicle_image_path` | `str` | Local path to downloaded vehicle image |

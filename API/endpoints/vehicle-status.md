@@ -59,7 +59,29 @@ Standard [signed headers](../common-patterns.md#required-headers) with `authoriz
           "climateActive": false,
           "fragActive": "0",
           "interiorTemp": "22.5",
-          "exteriorTemp": "18.0"
+          "exteriorTemp": "18.0",
+          "winPosDriver": "0",
+          "winPosPassenger": "0",
+          "winPosDriverRear": "0",
+          "winPosPassengerRear": "0",
+          "sunroofPos": "101",
+          "sunroofOpenStatus": "0",
+          "curtainPos": "101",
+          "curtainOpenStatus": "0",
+          "sunCurtainRearPos": "101",
+          "sunCurtainRearOpenStatus": "0",
+          "drvHeatSts": "0",
+          "passHeatingSts": "0",
+          "rlHeatingSts": "0",
+          "rrHeatingSts": "0",
+          "drvVentSts": "0",
+          "passVentSts": "0",
+          "rlVentSts": "0",
+          "rrVentSts": "0",
+          "steerWhlHeatingSts": "0",
+          "preClimateActive": false,
+          "defrost": false,
+          "airBlowerActive": false
         },
         "maintenanceStatus": {
           "odometer": "500.000",
@@ -141,6 +163,58 @@ Standard [signed headers](../common-patterns.md#required-headers) with `authoriz
 | `fragActive` | string → bool | — | `"1"` = fragrance diffuser on |
 | `interiorTemp` | string → float | °C | Cabin temperature |
 | `exteriorTemp` | string → float | °C | Outside temperature |
+
+### Climate Detailed (also in climateStatus)
+
+| Field | Type | Unit | Description |
+|-------|------|------|-------------|
+| `winPosDriver` | string → int | % | Driver window position (0 = closed, 100 = fully open) |
+| `winPosPassenger` | string → int | % | Passenger window position |
+| `winPosDriverRear` | string → int | % | Rear-left window position |
+| `winPosPassengerRear` | string → int | % | Rear-right window position |
+| `sunroofPos` | string → int | % | Sunroof position (**`101` = not equipped**) |
+| `sunroofOpenStatus` | string → bool | — | `"1"` = sunroof open |
+| `curtainPos` | string → int | % | Sun curtain position (**`101` = not equipped**) |
+| `curtainOpenStatus` | string → bool | — | `"1"` = curtain open |
+| `sunCurtainRearPos` | string → int | % | Rear sun curtain position (**`101` = not equipped**) |
+| `sunCurtainRearOpenStatus` | string → bool | — | `"1"` = rear curtain open |
+| `drvHeatSts` | string → int | level | Driver seat heating (0=off, 1=low, 2=medium, 3=high) |
+| `passHeatingSts` | string → int | level | Passenger seat heating |
+| `rlHeatingSts` | string → int | level | Rear-left seat heating |
+| `rrHeatingSts` | string → int | level | Rear-right seat heating |
+| `drvVentSts` | string → int | level | Driver seat ventilation (0=off, 1=low, 2=medium, 3=high) |
+| `passVentSts` | string → int | level | Passenger seat ventilation |
+| `rlVentSts` | string → int | level | Rear-left seat ventilation |
+| `rrVentSts` | string → int | level | Rear-right seat ventilation |
+| `steerWhlHeatingSts` | string → int | level | Steering wheel heating |
+| `preClimateActive` | bool | — | Pre-conditioning active |
+| `defrost` | bool | — | Defrost active |
+| `airBlowerActive` | bool | — | Air blower active |
+
+### Sentinel Value: `101` (Not Equipped)
+
+Position fields (`sunroofPos`, `curtainPos`, `sunCurtainRearPos`, and window position fields) use **`101`** as a sentinel value meaning **"hardware not equipped"** on this vehicle.
+
+When a position field equals `101`:
+- The position is normalised to `None` (unavailable)
+- The corresponding open/closed boolean (e.g., `sunroofOpenStatus`) is also set to `None`
+- The integration will **not create entities** for that hardware at all
+
+This applies to vehicles without sunroofs, sun curtains, or (less commonly) powered rear windows. The sentinel is consistent across all Smart models (#1, #3, #5) and all trim levels.
+
+Example — a Smart #3 BRABUS **without** a sunroof:
+```json
+{
+  "sunroofPos": "101",
+  "sunroofOpenStatus": "0",
+  "curtainPos": "101",
+  "curtainOpenStatus": "0",
+  "sunCurtainRearPos": "101",
+  "sunCurtainRearOpenStatus": "0"
+}
+```
+
+> **Integration behaviour**: On first data fetch, entities with `equipped_fn` callbacks check whether the underlying field is `None`. If it is, the entity is never registered. Any previously-registered stale entities are cleaned up from the entity registry.
 
 ### Maintenance Status
 
@@ -229,8 +303,18 @@ Returns: [`VehicleStatus`](../models.md#vehiclestatus)
 | `days_to_service` | sensor | duration |
 | `distance_to_service` | sensor | distance |
 | `power_mode` | sensor | enum |
+| `window_position_*` | sensor | — |
+| `sunroof_position` | sensor | — |
+| `curtain_position` | sensor | — |
+| `sun_curtain_rear_position` | sensor | — |
+| `driver_seat_heating` / `passenger_seat_heating` | sensor | — |
+| `rear_left_seat_heating` / `rear_right_seat_heating` | sensor | — |
+| `driver_seat_ventilation` / `passenger_seat_ventilation` | sensor | — |
+| `steering_wheel_heating` | sensor | — |
 | `driver_door` / `passenger_door` / etc. | binary_sensor | door |
 | `driver_window` / etc. | binary_sensor | window |
+| `sunroof_open` | binary_sensor | opening |
+| `curtain_open` / `sun_curtain_rear_open` | binary_sensor | opening |
 | `charger_connected` | binary_sensor | plug |
 | `tyre_warning_*` | binary_sensor | problem |
 | `brake_fluid_ok` | binary_sensor | problem |

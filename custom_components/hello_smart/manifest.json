@@ -8,5 +8,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/onpremcloudguy/HelloSmart_HomeAssistant/issues",
   "requirements": [],
-  "version": "0.4.5"
+  "version": "0.5.0"
 }

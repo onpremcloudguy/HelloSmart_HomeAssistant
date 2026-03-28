@@ -1,8 +1,6 @@
 # Smart Vehicle Cloud API Reference
 
-Complete documentation of all GET API endpoints consumed by the Hello Smart Home Assistant integration. These endpoints are reverse-engineered from the Smart mobile app APKs (EU and INTL variants) and validated against the live API.
-
-> **Read-only endpoints only.** POST/PUT command endpoints (lock, unlock, climate control, etc.) are not yet implemented.
+Complete documentation of all API endpoints consumed by the Hello Smart Home Assistant integration. These endpoints are reverse-engineered from the Smart mobile app APKs (EU and INTL variants) and validated against the live API.
 
 ---
 
@@ -10,8 +8,8 @@ Complete documentation of all GET API endpoints consumed by the Hello Smart Home
 
 | Document | Description |
 |----------|-------------|
-| [Common Patterns](common-patterns.md) | Base URLs, request signing, response envelope, error codes, data types |
-| [Endpoint Index](index.md) | Quick-reference table for all 22 endpoints |
+| [Common Patterns](common-patterns.md) | Base URLs, request signing, response envelope, error codes, command controls |
+| [Endpoint Index](index.md) | Quick-reference table for all 22+ endpoints |
 | [Data Models](models.md) | Enumerations, dataclasses, and type definitions |
 | [Entity Mapping](entities.md) | How API data maps to Home Assistant entities |
 

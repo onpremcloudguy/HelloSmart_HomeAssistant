@@ -18,11 +18,32 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .api import SmartAPI, TokenExpiredError
 from .auth import AuthenticationError, async_login_eu, async_login_intl
 from .const import COMMAND_COOLDOWN_SECONDS, DEFAULT_SCAN_INTERVAL, DOMAIN
-from .models import Account, AuthState, ChargingReservation, CommandResult, OTAInfo, Region, VehicleData
+from .models import (
+    Account,
+    AuthState,
+    ChargingReservation,
+    CommandResult,
+    OTAInfo,
+    Region,
+    StaticVehicleData,
+    Vehicle,
+    VehicleData,
+    VehicleEdition,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 CONF_SCAN_INTERVAL = "scan_interval"
+
+
+def _build_model_label(vehicle: Vehicle) -> str:
+    """Build a display label like 'Smart #3 BRABUS' from vehicle data."""
+    edition = vehicle.edition
+    model = vehicle.smart_model
+    if model.value != "Unknown" and edition != VehicleEdition.UNKNOWN:
+        return f"Smart {model.value} {edition.value}"
+    # Fall back to API model_name or generic label
+    return vehicle.model_name or "Smart Vehicle"
 
 
 class SmartDataCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
@@ -48,6 +69,7 @@ class SmartDataCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
         self._api = SmartAPI(self._session)
         self._account: Account | None = None
         self._device_infos: dict[str, DeviceInfo] = {}
+        self._static_cache: dict[str, StaticVehicleData] = {}
 
     @property
     def account(self) -> Account | None:
@@ -220,11 +242,12 @@ class SmartDataCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
                 continue
 
             # Register device in HA
+            model_label = _build_model_label(vehicle)
             self._device_infos[vin] = DeviceInfo(
                 identifiers={(DOMAIN, vin)},
                 manufacturer="Smart",
-                model=vehicle.model_name or "Smart Vehicle",
-                name=vehicle.model_name or f"Smart {vin[-6:]}",
+                model=model_label,
+                name=model_label,
                 model_id=vehicle.series_code or None,
                 hw_version=vehicle.model_year or None,
                 serial_number=vin,
@@ -351,12 +374,62 @@ class SmartDataCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
                 except Exception:
                     _LOGGER.debug("Geofences unavailable for %s", vin[:6] + "...", exc_info=True)
 
-                # Fetch capabilities
-                capabilities = None
-                try:
-                    capabilities = await self._api.async_get_capabilities(account, vin)
-                except Exception:
-                    _LOGGER.debug("Capabilities unavailable for %s", vin[:6] + "...", exc_info=True)
+                # Fetch static data (capabilities, plant_no, ability) — cached after first poll
+                if vin not in self._static_cache:
+                    capabilities = None
+                    try:
+                        capabilities = await self._api.async_get_capabilities(account, vin)
+                    except Exception:
+                        _LOGGER.debug("Capabilities unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                    plant_no = None
+                    try:
+                        plant_no = await self._api.async_get_plant_no(account, vin)
+                    except Exception:
+                        _LOGGER.debug("Plant number unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                    ability = None
+                    vehicle_image_path = ""
+                    try:
+                        ability = await self._api.async_get_vehicle_ability(
+                            account, vin, vehicle.model_code or ""
+                        )
+                        if ability:
+                            import os
+                            www_dir = self.hass.config.path("www", "hello_smart")
+                            if ability.images_path:
+                                dest_file = os.path.join(www_dir, f"{vin}_side.png")
+                                downloaded = await self._api.async_download_image(
+                                    ability.images_path, dest_file
+                                )
+                                if downloaded:
+                                    vehicle_image_path = f"/local/hello_smart/{vin}_side.png"
+                            if ability.interior_images_path:
+                                dest_interior = os.path.join(www_dir, f"{vin}_interior.png")
+                                await self._api.async_download_image(
+                                    ability.interior_images_path, dest_interior
+                                )
+                            if ability.top_images_path:
+                                dest_top = os.path.join(www_dir, f"{vin}_top.png")
+                                await self._api.async_download_image(
+                                    ability.top_images_path, dest_top
+                                )
+                    except Exception:
+                        _LOGGER.debug("Vehicle ability unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                    self._static_cache[vin] = StaticVehicleData(
+                        capabilities=capabilities,
+                        ability=ability,
+                        plant_no=plant_no or "",
+                        vehicle_image_path=vehicle_image_path,
+                    )
+                    _LOGGER.debug("Cached static data for %s", vin[:6] + "...")
+
+                cached = self._static_cache[vin]
+                capabilities = cached.capabilities
+                ability = cached.ability
+                plant_no = cached.plant_no
+                vehicle_image_path = cached.vehicle_image_path
 
                 # Fetch energy ranking
                 energy_ranking = None
@@ -379,43 +452,6 @@ class SmartDataCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
                 except Exception:
                     _LOGGER.debug("FOTA notification unavailable for %s", vin[:6] + "...", exc_info=True)
 
-                # Fetch plant number for DeviceInfo
-                plant_no = None
-                try:
-                    plant_no = await self._api.async_get_plant_no(account, vin)
-                except Exception:
-                    _LOGGER.debug("Plant number unavailable for %s", vin[:6] + "...", exc_info=True)
-
-                # Fetch vehicle ability (image URLs, color/trim config)
-                ability = None
-                vehicle_image_path = ""
-                try:
-                    ability = await self._api.async_get_vehicle_ability(
-                        account, vin, vehicle.model_code or ""
-                    )
-                    if ability:
-                        import os
-                        www_dir = self.hass.config.path("www", "hello_smart")
-                        if ability.images_path:
-                            dest_file = os.path.join(www_dir, f"{vin}_side.png")
-                            downloaded = await self._api.async_download_image(
-                                ability.images_path, dest_file
-                            )
-                            if downloaded:
-                                vehicle_image_path = f"/local/hello_smart/{vin}_side.png"
-                        if ability.interior_images_path:
-                            dest_interior = os.path.join(www_dir, f"{vin}_interior.png")
-                            await self._api.async_download_image(
-                                ability.interior_images_path, dest_interior
-                            )
-                        if ability.top_images_path:
-                            dest_top = os.path.join(www_dir, f"{vin}_top.png")
-                            await self._api.async_download_image(
-                                ability.top_images_path, dest_top
-                            )
-                except Exception:
-                    _LOGGER.debug("Vehicle ability unavailable for %s", vin[:6] + "...", exc_info=True)
-
             except Exception as err:
                 _LOGGER.warning(
                     "Failed to fetch status for vehicle %s: %s",
@@ -427,11 +463,12 @@ class SmartDataCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
 
             # Update DeviceInfo with sw_version from OTA and configuration_url
             if ota and ota.current_version:
+                model_label = _build_model_label(vehicle)
                 self._device_infos[vin] = DeviceInfo(
                     identifiers={(DOMAIN, vin)},
                     manufacturer="Smart",
-                    model=vehicle.model_name or "Smart Vehicle",
-                    name=vehicle.model_name or f"Smart {vin[-6:]}",
+                    model=model_label,
+                    name=model_label,
                     model_id=vehicle.series_code or None,
                     hw_version=vehicle.model_year or None,
                     sw_version=ota.current_version,

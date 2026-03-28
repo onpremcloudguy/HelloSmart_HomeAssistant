@@ -2,6 +2,52 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] — 2026-03-29
+
+### Feature: Capability-Based Entity Filtering (`006-capability-entity-filtering`)
+
+Intelligent entity filtering based on vehicle hardware capabilities, trim level, and equipment detection. Vehicles only show entities for features they actually have — no more phantom sensors for sunroofs on cars without sunroofs, or seat heating controls on base-trim vehicles.
+
+### Added
+
+- **Capability-based entity filtering** — all 9 entity platforms (sensor, binary_sensor, lock, climate, switch, button, select, number, time) now check vehicle capability flags before creating entities; unsupported features are silently excluded
+- **Sentinel value detection** — position fields returning `101` ("not equipped" hardware) are normalised to `None` in the API layer; sunroof, curtain, and rear sun curtain positions correctly report as unavailable on non-equipped vehicles
+- **V2→V1 capability alias mapping** — API returns v2 function IDs; 10-entry mapping dict translates to the v1 constants used by entity descriptions; 3 inferred capabilities for IDs with no direct v2 equivalent
+- **Vehicle model detection** — `VehicleModel` enum (Smart #1/#3/#5) derived from `matCode` prefix (HX1/HC1/HY1)
+- **Vehicle edition detection** — `VehicleEdition` enum (Pure/Pro/Pulse/Premium/BRABUS/Launch) derived from `matCode` positions [5:7], with feature-gate properties (`has_driver_seat_heating`, `has_pm25`) matching APK logic
+- **Edition-based entity filtering** — `edition_check` callback on sensor/select entity descriptions excludes PM2.5 sensors (Pure/Pro only) and seat heating controls (Pure only) based on trim level
+- **Hardware equipment filtering** — `equipped_fn` callback on sensor/binary_sensor descriptions excludes entities when hardware reports "not equipped" via sentinel values
+- **Stale entity cleanup** — entity registry cleanup in `async_setup_entry` for sensor, binary_sensor, and select platforms; removes orphaned entity entries after filtering changes
+- **Vehicle model/edition diagnostic sensors** — two new diagnostic sensors showing detected model (#1/#3/#5) and edition (Pure/Pro/Pulse/Premium/BRABUS/Launch)
+- **Static data caching** — capabilities, vehicle ability, and plant number endpoints cached after first fetch; eliminates 3 API calls per poll cycle per vehicle
+- **Lovelace resource registration** — custom card JS files registered as proper Lovelace storage resources (same mechanism as HACS) instead of deferred script injection; eliminates intermittent "configuration error" on page refresh
+- **Card loading resilience** — `connectedCallback` lifecycle hook and loading placeholder in both custom cards; cards show "Loading…" state instead of empty DOM while waiting for `hass`
+- **Frontend early registration** — `async_setup()` hook registers static paths at platform level before entry setup, ensuring JS files are servable before any dashboard renders
+
+### Changed
+
+- **Capability default changed** — `cap_flags.get(key, True)` → `cap_flags.get(key, False)` across all 9 entity platforms; unknown capabilities now default to disabled (safe-by-default)
+- **Coordinator DeviceInfo** — model label now shows "Smart #3 BRABUS" style device names derived from matCode
+- **Dashboard sunroof cards** — wrapped in `conditional` cards that hide when entity is unavailable (both enhanced and basic dashboards)
+- **Frontend registration order** — moved from `async_setup_entry` (after 19s API refresh) to `async_setup` (before any entry loads); version-aware cleanup removes stale resource entries on upgrade
+
+### Fixed
+
+- **Phantom sunroof entities** — sunroof, curtain, and rear sun curtain sensors/binary sensors no longer created on vehicles without sunroof hardware
+- **Custom card race condition** — "configuration error" on hard refresh caused by JS loaded via `add_extra_js_url` (deferred script) racing against card instantiation; fixed by registering as Lovelace resources which load before card rendering
+
+### API Documentation
+
+- **capabilities.md** — V2→V1 function ID mapping table, inferred capabilities, default behaviour docs
+- **list-vehicles.md** — full response JSON, matCode decoding (model prefix table, edition code table, feature matrix)
+- **vehicle-status.md** — climate detail fields, sentinel value 101 section
+- **models.md** — VehicleModel/VehicleEdition enums, expanded Vehicle/VehicleStatus dataclasses
+- **common-patterns.md** — vehicle commands PUT section with all 12 service IDs and parameters
+- **index.md** — vehicle commands quick reference
+- **README.md** — removed "read-only only" notice
+
+---
+
 ## [0.4.4] — 2026-03-09
 
 ### Fixed

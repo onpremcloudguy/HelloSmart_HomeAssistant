@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -27,12 +28,25 @@ from homeassistant.const import (
     UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import (
+    DOMAIN,
+    FUNCTION_ID_CHARGING,
+    FUNCTION_ID_CHARGING_RESERVATION,
+    FUNCTION_ID_CLIMATE_STATUS,
+    FUNCTION_ID_FRAGRANCE,
+    FUNCTION_ID_SEAT_HEAT,
+    FUNCTION_ID_SEAT_VENT,
+    FUNCTION_ID_TOTAL_MILEAGE,
+    FUNCTION_ID_TYRE_PRESSURE,
+)
 from .coordinator import SmartDataCoordinator
-from .models import ChargingState, PowerMode, VehicleData
+from .models import ChargingState, PowerMode, VehicleData, VehicleEdition
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -40,6 +54,9 @@ class SmartSensorEntityDescription(SensorEntityDescription):
     """Describes a Hello Smart sensor entity."""
 
     value_fn: Callable[[VehicleData], Any]
+    required_capability: str | None = None
+    edition_check: Callable[[VehicleEdition], bool] | None = None
+    equipped_fn: Callable[[VehicleData], bool] | None = None
 
 
 SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
@@ -70,6 +87,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.ENUM,
         options=[state.value for state in ChargingState],
         value_fn=lambda data: data.status.charging_state.value,
+        required_capability=FUNCTION_ID_CHARGING,
     ),
     SmartSensorEntityDescription(
         key="charge_voltage",
@@ -80,6 +98,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
         value_fn=lambda data: data.status.charge_voltage or 0,
+        required_capability=FUNCTION_ID_CHARGING,
     ),
     SmartSensorEntityDescription(
         key="charge_current",
@@ -90,6 +109,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
         value_fn=lambda data: data.status.charge_current or 0,
+        required_capability=FUNCTION_ID_CHARGING,
     ),
     SmartSensorEntityDescription(
         key="time_to_full",
@@ -99,6 +119,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.status.time_to_full or 0,
+        required_capability=FUNCTION_ID_CHARGING,
     ),
     # ── Firmware ───────────────────────────────────────────────────────
     SmartSensorEntityDescription(
@@ -125,6 +146,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
         value_fn=lambda data: data.status.tyre_pressure_fl,
+        required_capability=FUNCTION_ID_TYRE_PRESSURE,
     ),
     SmartSensorEntityDescription(
         key="tyre_pressure_fr",
@@ -135,6 +157,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
         value_fn=lambda data: data.status.tyre_pressure_fr,
+        required_capability=FUNCTION_ID_TYRE_PRESSURE,
     ),
     SmartSensorEntityDescription(
         key="tyre_pressure_rl",
@@ -145,6 +168,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
         value_fn=lambda data: data.status.tyre_pressure_rl,
+        required_capability=FUNCTION_ID_TYRE_PRESSURE,
     ),
     SmartSensorEntityDescription(
         key="tyre_pressure_rr",
@@ -155,6 +179,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
         value_fn=lambda data: data.status.tyre_pressure_rr,
+        required_capability=FUNCTION_ID_TYRE_PRESSURE,
     ),
     SmartSensorEntityDescription(
         key="tyre_temp_fl",
@@ -166,6 +191,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         suggested_display_precision=1,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.tyre_temp_fl,
+        required_capability=FUNCTION_ID_TYRE_PRESSURE,
     ),
     SmartSensorEntityDescription(
         key="tyre_temp_fr",
@@ -177,6 +203,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         suggested_display_precision=1,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.tyre_temp_fr,
+        required_capability=FUNCTION_ID_TYRE_PRESSURE,
     ),
     SmartSensorEntityDescription(
         key="tyre_temp_rl",
@@ -188,6 +215,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         suggested_display_precision=1,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.tyre_temp_rl,
+        required_capability=FUNCTION_ID_TYRE_PRESSURE,
     ),
     SmartSensorEntityDescription(
         key="tyre_temp_rr",
@@ -199,6 +227,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         suggested_display_precision=1,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.tyre_temp_rr,
+        required_capability=FUNCTION_ID_TYRE_PRESSURE,
     ),
     # ── Maintenance ────────────────────────────────────────────────────
     SmartSensorEntityDescription(
@@ -210,6 +239,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         suggested_display_precision=0,
         value_fn=lambda data: data.status.odometer,
+        required_capability=FUNCTION_ID_TOTAL_MILEAGE,
     ),
     SmartSensorEntityDescription(
         key="days_to_service",
@@ -301,6 +331,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
             "active" if data.charging_reservation and data.charging_reservation.active
             else "inactive"
         ),
+        required_capability=FUNCTION_ID_CHARGING_RESERVATION,
     ),
     SmartSensorEntityDescription(
         key="charging_schedule_start",
@@ -311,6 +342,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
             if data.charging_reservation and data.charging_reservation.start_time
             else ""
         ),
+        required_capability=FUNCTION_ID_CHARGING_RESERVATION,
     ),
     SmartSensorEntityDescription(
         key="charging_schedule_end",
@@ -321,6 +353,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
             if data.charging_reservation and data.charging_reservation.end_time
             else ""
         ),
+        required_capability=FUNCTION_ID_CHARGING_RESERVATION,
     ),
     SmartSensorEntityDescription(
         key="charging_target_soc",
@@ -332,6 +365,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
             if data.charging_reservation and data.charging_reservation.target_soc is not None
             else 0
         ),
+        required_capability=FUNCTION_ID_CHARGING_RESERVATION,
     ),
     # ── Climate Schedule ──────────────────────────────────────────────
     SmartSensorEntityDescription(
@@ -344,6 +378,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
             "enabled" if data.climate_schedule and data.climate_schedule.enabled
             else "disabled"
         ),
+        required_capability=FUNCTION_ID_CLIMATE_STATUS,
     ),
     SmartSensorEntityDescription(
         key="climate_schedule_time",
@@ -354,6 +389,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
             if data.climate_schedule and data.climate_schedule.scheduled_time
             else ""
         ),
+        required_capability=FUNCTION_ID_CLIMATE_STATUS,
     ),
     # ── Trip Journal ────────────────────────────────────────────────────
     SmartSensorEntityDescription(
@@ -428,6 +464,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
             if data.fragrance and data.fragrance.level
             else ""
         ),
+        required_capability=FUNCTION_ID_FRAGRANCE,
     ),
     # ── Security & Geofences ───────────────────────────────────────────
     SmartSensorEntityDescription(
@@ -467,6 +504,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
             if data.climate_schedule
             else 0
         ),
+        required_capability=FUNCTION_ID_CLIMATE_STATUS,
     ),
     SmartSensorEntityDescription(
         key="climate_schedule_duration",
@@ -479,6 +517,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
             if data.climate_schedule
             else 0
         ),
+        required_capability=FUNCTION_ID_CLIMATE_STATUS,
     ),
     SmartSensorEntityDescription(
         key="fridge_mode",
@@ -612,6 +651,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
         value_fn=lambda data: data.status.dc_charge_current or 0,
+        required_capability=FUNCTION_ID_CHARGING,
     ),
     SmartSensorEntityDescription(
         key="charging_power",
@@ -622,6 +662,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
         value_fn=lambda data: data.status.charging_power or 0,
+        required_capability=FUNCTION_ID_CHARGING,
     ),
     # ── Climate Detailed ───────────────────────────────────────────────
     SmartSensorEntityDescription(
@@ -632,6 +673,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.window_position_driver,
+        equipped_fn=lambda data: data.status.window_position_driver is not None,
     ),
     SmartSensorEntityDescription(
         key="window_position_passenger",
@@ -641,6 +683,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.window_position_passenger,
+        equipped_fn=lambda data: data.status.window_position_passenger is not None,
     ),
     SmartSensorEntityDescription(
         key="window_position_driver_rear",
@@ -650,6 +693,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.window_position_driver_rear,
+        equipped_fn=lambda data: data.status.window_position_driver_rear is not None,
     ),
     SmartSensorEntityDescription(
         key="window_position_passenger_rear",
@@ -659,6 +703,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.window_position_passenger_rear,
+        equipped_fn=lambda data: data.status.window_position_passenger_rear is not None,
     ),
     SmartSensorEntityDescription(
         key="sunroof_position",
@@ -668,6 +713,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.sunroof_position,
+        equipped_fn=lambda data: data.status.sunroof_position is not None,
     ),
     SmartSensorEntityDescription(
         key="curtain_position",
@@ -677,6 +723,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.curtain_position,
+        equipped_fn=lambda data: data.status.curtain_position is not None,
     ),
     SmartSensorEntityDescription(
         key="sun_curtain_rear_position",
@@ -686,6 +733,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.sun_curtain_rear_position,
+        equipped_fn=lambda data: data.status.sun_curtain_rear_position is not None,
     ),
     # ── Seat Heating / Ventilation ─────────────────────────────────────
     SmartSensorEntityDescription(
@@ -694,6 +742,8 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         icon="mdi:car-seat-heater",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.status.driver_seat_heating,
+        required_capability=FUNCTION_ID_SEAT_HEAT,
+        edition_check=lambda e: e.has_driver_seat_heating,
     ),
     SmartSensorEntityDescription(
         key="passenger_seat_heating",
@@ -701,6 +751,8 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         icon="mdi:car-seat-heater",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.status.passenger_seat_heating,
+        required_capability=FUNCTION_ID_SEAT_HEAT,
+        edition_check=lambda e: e.has_driver_seat_heating,
     ),
     SmartSensorEntityDescription(
         key="rear_left_seat_heating",
@@ -709,6 +761,8 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.rear_left_seat_heating,
+        required_capability=FUNCTION_ID_SEAT_HEAT,
+        edition_check=lambda e: e.has_driver_seat_heating,
     ),
     SmartSensorEntityDescription(
         key="rear_right_seat_heating",
@@ -717,6 +771,8 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.rear_right_seat_heating,
+        required_capability=FUNCTION_ID_SEAT_HEAT,
+        edition_check=lambda e: e.has_driver_seat_heating,
     ),
     SmartSensorEntityDescription(
         key="driver_seat_ventilation",
@@ -724,6 +780,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         icon="mdi:car-seat-cooler",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.status.driver_seat_ventilation,
+        required_capability=FUNCTION_ID_SEAT_VENT,
     ),
     SmartSensorEntityDescription(
         key="passenger_seat_ventilation",
@@ -731,6 +788,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         icon="mdi:car-seat-cooler",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.status.passenger_seat_ventilation,
+        required_capability=FUNCTION_ID_SEAT_VENT,
     ),
     SmartSensorEntityDescription(
         key="rear_left_seat_ventilation",
@@ -739,6 +797,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.rear_left_seat_ventilation,
+        required_capability=FUNCTION_ID_SEAT_VENT,
     ),
     SmartSensorEntityDescription(
         key="rear_right_seat_ventilation",
@@ -747,6 +806,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.rear_right_seat_ventilation,
+        required_capability=FUNCTION_ID_SEAT_VENT,
     ),
     SmartSensorEntityDescription(
         key="steering_wheel_heating",
@@ -763,6 +823,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         native_unit_of_measurement="µg/m³",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.status.interior_pm25,
+        edition_check=lambda e: e.has_pm25,
     ),
     SmartSensorEntityDescription(
         key="interior_pm25_level",
@@ -771,6 +832,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.interior_pm25_level,
+        edition_check=lambda e: e.has_pm25,
     ),
     SmartSensorEntityDescription(
         key="exterior_pm25_level",
@@ -779,6 +841,7 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.status.exterior_pm25_level,
+        edition_check=lambda e: e.has_pm25,
     ),
     SmartSensorEntityDescription(
         key="relative_humidity",
@@ -868,6 +931,20 @@ SENSOR_DESCRIPTIONS: tuple[SmartSensorEntityDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.vehicle.mat_code or None,
+    ),
+    SmartSensorEntityDescription(
+        key="vehicle_edition",
+        translation_key="vehicle_edition",
+        icon="mdi:car-info",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.vehicle.edition.value,
+    ),
+    SmartSensorEntityDescription(
+        key="vehicle_model",
+        translation_key="vehicle_model",
+        icon="mdi:car-info",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.vehicle.smart_model.value,
     ),
     SmartSensorEntityDescription(
         key="fuel_tank_capacity",
@@ -985,7 +1062,49 @@ async def async_setup_entry(
 
     entities: list[SmartSensorEntity] = []
     for vin, vehicle_data in coordinator.data.items():
+        cap_flags = (
+            vehicle_data.capabilities.capability_flags
+            if vehicle_data.capabilities
+            else {}
+        )
+        edition = vehicle_data.vehicle.edition
+        skipped = 0
         for description in SENSOR_DESCRIPTIONS:
+            if (
+                description.required_capability is not None
+                and not cap_flags.get(description.required_capability, False)
+            ):
+                skipped += 1
+                _LOGGER.debug(
+                    "Skipping sensor '%s' for %s: capability '%s' disabled",
+                    description.key,
+                    vin[:6] + "...",
+                    description.required_capability,
+                )
+                continue
+            if (
+                description.edition_check is not None
+                and not description.edition_check(edition)
+            ):
+                skipped += 1
+                _LOGGER.debug(
+                    "Skipping sensor '%s' for %s: not available on %s edition",
+                    description.key,
+                    vin[:6] + "...",
+                    edition.value,
+                )
+                continue
+            if (
+                description.equipped_fn is not None
+                and not description.equipped_fn(vehicle_data)
+            ):
+                skipped += 1
+                _LOGGER.debug(
+                    "Skipping sensor '%s' for %s: hardware not equipped",
+                    description.key,
+                    vin[:6] + "...",
+                )
+                continue
             entities.append(
                 SmartSensorEntity(
                     coordinator=coordinator,
@@ -993,8 +1112,28 @@ async def async_setup_entry(
                     vin=vin,
                 )
             )
+        if skipped:
+            _LOGGER.info(
+                "Filtered %d sensor(s) for %s based on capabilities",
+                skipped,
+                vin[:6] + "...",
+            )
 
     async_add_entities(entities)
+
+    # Clean up stale entity registry entries for filtered-out entities
+    created_unique_ids = {e.unique_id for e in entities}
+    ent_reg = er.async_get(hass)
+    for reg_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+        if (
+            reg_entry.domain == "sensor"
+            and reg_entry.platform == DOMAIN
+            and reg_entry.unique_id not in created_unique_ids
+        ):
+            _LOGGER.debug(
+                "Removing stale sensor entity: %s", reg_entry.entity_id,
+            )
+            ent_reg.async_remove(reg_entry.entity_id)
 
 
 class SmartSensorEntity(CoordinatorEntity[SmartDataCoordinator], SensorEntity):

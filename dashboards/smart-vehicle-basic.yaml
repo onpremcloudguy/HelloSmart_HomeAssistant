@@ -246,12 +246,22 @@ views:
           - entity: sensor.smart_234118_window_position_passenger_rear
             name: Rear Right Position
             icon: mdi:arrow-up-down
-          - entity: binary_sensor.smart_234118_sunroof_open
-            name: Sunroof
-            icon: mdi:car-select
-          - entity: sensor.smart_234118_sunroof_position
-            name: Sunroof Position
-            icon: mdi:arrow-up-down
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.smart_234118_sunroof_open
+                state_not: unavailable
+            row:
+              entity: binary_sensor.smart_234118_sunroof_open
+              name: Sunroof
+              icon: mdi:car-select
+          - type: conditional
+            conditions:
+              - entity: sensor.smart_234118_sunroof_position
+                state_not: unavailable
+            row:
+              entity: sensor.smart_234118_sunroof_position
+              name: Sunroof Position
+              icon: mdi:arrow-up-down
           - entity: button.smart_234118_smart_close_windows
             name: Close All Windows
             icon: mdi:window-closed
