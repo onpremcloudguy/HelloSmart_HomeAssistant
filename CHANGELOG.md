@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] — 2026-03-29
+
+### Fixed
+
+- **Static cache capability retry** — when the capabilities API call fails on initial boot (transient error), the coordinator no longer permanently caches `None`; subsequent poll cycles retry the fetch until capabilities are successfully loaded, preventing ~50 capability-gated entities (doors, windows, trunk, tyres, charge lids, hood, door locks) from being silently filtered out
+- **Card entity map rebuild** — `_buildDeviceEntityMap` in both custom cards now tracks entity count and rebuilds the map when the HA entity registry grows, fixing partial entity maps when `hass.entities` loads progressively
+
+### Changed
+
+- **Diagnostics output** — added `capabilities.available` and `capabilities.flag_count` to the diagnostics config entry dump for easier remote debugging
+
+---
+
 ## [0.5.0] — 2026-03-29
 
 ### Feature: Capability-Based Entity Filtering (`006-capability-entity-filtering`)

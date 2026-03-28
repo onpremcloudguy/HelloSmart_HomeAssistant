@@ -374,48 +374,59 @@ class SmartDataCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
                 except Exception:
                     _LOGGER.debug("Geofences unavailable for %s", vin[:6] + "...", exc_info=True)
 
-                # Fetch static data (capabilities, plant_no, ability) — cached after first poll
-                if vin not in self._static_cache:
+                # Fetch static data (capabilities, plant_no, ability) — cached after first poll.
+                # Retry if capabilities were not fetched on a previous attempt.
+                cached = self._static_cache.get(vin)
+                need_static = cached is None or cached.capabilities is None
+                if need_static:
                     capabilities = None
                     try:
                         capabilities = await self._api.async_get_capabilities(account, vin)
                     except Exception:
                         _LOGGER.debug("Capabilities unavailable for %s", vin[:6] + "...", exc_info=True)
 
-                    plant_no = None
-                    try:
-                        plant_no = await self._api.async_get_plant_no(account, vin)
-                    except Exception:
-                        _LOGGER.debug("Plant number unavailable for %s", vin[:6] + "...", exc_info=True)
-
-                    ability = None
-                    vehicle_image_path = ""
-                    try:
-                        ability = await self._api.async_get_vehicle_ability(
-                            account, vin, vehicle.model_code or ""
+                    if capabilities is None and cached is not None:
+                        _LOGGER.warning(
+                            "Capabilities still unavailable for %s; retrying next poll",
+                            vin[:6] + "...",
                         )
-                        if ability:
-                            import os
-                            www_dir = self.hass.config.path("www", "hello_smart")
-                            if ability.images_path:
-                                dest_file = os.path.join(www_dir, f"{vin}_side.png")
-                                downloaded = await self._api.async_download_image(
-                                    ability.images_path, dest_file
-                                )
-                                if downloaded:
-                                    vehicle_image_path = f"/local/hello_smart/{vin}_side.png"
-                            if ability.interior_images_path:
-                                dest_interior = os.path.join(www_dir, f"{vin}_interior.png")
-                                await self._api.async_download_image(
-                                    ability.interior_images_path, dest_interior
-                                )
-                            if ability.top_images_path:
-                                dest_top = os.path.join(www_dir, f"{vin}_top.png")
-                                await self._api.async_download_image(
-                                    ability.top_images_path, dest_top
-                                )
-                    except Exception:
-                        _LOGGER.debug("Vehicle ability unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                    plant_no = cached.plant_no if cached else None
+                    if not plant_no:
+                        try:
+                            plant_no = await self._api.async_get_plant_no(account, vin)
+                        except Exception:
+                            _LOGGER.debug("Plant number unavailable for %s", vin[:6] + "...", exc_info=True)
+
+                    ability = cached.ability if cached else None
+                    vehicle_image_path = cached.vehicle_image_path if cached else ""
+                    if ability is None:
+                        try:
+                            ability = await self._api.async_get_vehicle_ability(
+                                account, vin, vehicle.model_code or ""
+                            )
+                            if ability:
+                                import os
+                                www_dir = self.hass.config.path("www", "hello_smart")
+                                if ability.images_path:
+                                    dest_file = os.path.join(www_dir, f"{vin}_side.png")
+                                    downloaded = await self._api.async_download_image(
+                                        ability.images_path, dest_file
+                                    )
+                                    if downloaded:
+                                        vehicle_image_path = f"/local/hello_smart/{vin}_side.png"
+                                if ability.interior_images_path:
+                                    dest_interior = os.path.join(www_dir, f"{vin}_interior.png")
+                                    await self._api.async_download_image(
+                                        ability.interior_images_path, dest_interior
+                                    )
+                                if ability.top_images_path:
+                                    dest_top = os.path.join(www_dir, f"{vin}_top.png")
+                                    await self._api.async_download_image(
+                                        ability.top_images_path, dest_top
+                                    )
+                        except Exception:
+                            _LOGGER.debug("Vehicle ability unavailable for %s", vin[:6] + "...", exc_info=True)
 
                     self._static_cache[vin] = StaticVehicleData(
                         capabilities=capabilities,

@@ -70,6 +70,14 @@ async def async_get_config_entry_diagnostics(
                     "target_version": vehicle_data.ota.target_version,
                     "update_available": vehicle_data.ota.update_available,
                 },
+                "capabilities": {
+                    "available": vehicle_data.capabilities is not None,
+                    "flag_count": (
+                        len(vehicle_data.capabilities.capability_flags)
+                        if vehicle_data.capabilities
+                        else 0
+                    ),
+                },
             }
 
     # Account state (without secrets)
