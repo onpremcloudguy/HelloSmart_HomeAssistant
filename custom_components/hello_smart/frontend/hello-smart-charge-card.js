@@ -17,7 +17,7 @@
  *   show_12v: false        # show 12V battery info (default: false)
  */
 
-const CHARGE_CARD_VERSION = "1.0.0";
+const CHARGE_CARD_VERSION = "1.0.1";
 
 /* eslint-disable no-console */
 console.info(
@@ -76,7 +76,11 @@ class HelloSmartChargeCard extends HTMLElement {
       show_12v: false,
       ...config,
     };
-    this._render();
+    try {
+      this._render();
+    } catch (err) {
+      this._renderError("setConfig", err);
+    }
   }
 
   /**
@@ -108,6 +112,10 @@ class HelloSmartChargeCard extends HTMLElement {
         this._keyMap[entryTk] = entityId;
       }
     }
+
+    if (Object.keys(this._keyMap).length === 0) {
+      this._buildDeviceEntityMapFallback();
+    }
   }
 
   _getStateByKey(translationKey) {
@@ -129,14 +137,83 @@ class HelloSmartChargeCard extends HTMLElement {
     return isNaN(num) ? null : num;
   }
 
+  _renderError(phase, err) {
+    console.error(`[hello-smart-charge-card] Error in ${phase}:`, err);
+    if (this.shadowRoot) {
+      this.shadowRoot.innerHTML = `
+        <ha-card>
+          <div style="padding: 16px; color: var(--error-color, #db4437);">
+            <b>Hello Smart Charge Card Error</b>
+            <p style="font-size: 13px; margin: 8px 0 0;">${phase}: ${String(err.message || err)}</p>
+            <p style="font-size: 11px; color: var(--secondary-text-color); margin: 4px 0 0;">v${CHARGE_CARD_VERSION} | entity: ${this._config.entity || 'none'} | keys: ${Object.keys(this._keyMap).length}</p>
+          </div>
+        </ha-card>`;
+    }
+  }
+
+  /**
+   * Fallback: scan hass.states for entities sharing the same object_id prefix.
+   */
+  _buildDeviceEntityMapFallback() {
+    if (!this._hass || !this._config.entity) return;
+
+    const objectId = this._config.entity.replace(/^[^.]+\./, "");
+    const SUFFIX_TO_TKEY = {
+      "battery_level": "battery_level",
+      "estimated_range": "range_remaining",
+      "charging_status": "charging_status",
+      "charging_voltage": "charge_voltage",
+      "charging_current": "charge_current",
+      "dc_charging_current": "dc_charge_current",
+      "charging_power": "charging_power",
+      "time_to_full_charge": "time_to_full",
+      "range_at_full_charge": "range_at_full_charge",
+      "average_consumption": "average_power_consumption",
+      "scheduled_charging": "charging_schedule_status",
+      "scheduled_charge_start": "charging_schedule_start",
+      "scheduled_charge_end": "charging_schedule_end",
+      "charge_target": "charging_target_soc",
+      "12v_battery_voltage": "battery_12v_voltage",
+      "12v_battery_level": "battery_12v_level",
+      "charger": "charger_connected",
+    };
+
+    let prefix = "";
+    for (const suffix of Object.keys(SUFFIX_TO_TKEY)) {
+      if (objectId.endsWith(`_${suffix}`) || objectId === suffix) {
+        prefix = objectId.endsWith(`_${suffix}`) ? objectId.slice(0, -(suffix.length + 1)) : "";
+        break;
+      }
+    }
+    if (!prefix) {
+      const match = objectId.match(/^(.+?)_(?:battery|charging|estimated|scheduled|average|dc_|12v_|charge_|time_to)/);
+      if (match) prefix = match[1];
+    }
+    if (!prefix) return;
+
+    this._keyMap = {};
+    for (const entityId of Object.keys(this._hass.states)) {
+      const oid = entityId.replace(/^[^.]+\./, "");
+      if (!oid.startsWith(prefix + "_")) continue;
+      const suffix = oid.slice(prefix.length + 1);
+      if (SUFFIX_TO_TKEY[suffix]) {
+        this._keyMap[SUFFIX_TO_TKEY[suffix]] = entityId;
+      }
+    }
+  }
+
   set hass(hass) {
     this._hass = hass;
     if (!this._config.entity && hass) {
       const detected = HelloSmartChargeCard._autoDetectEntity(hass);
       if (detected) this._config.entity = detected;
     }
-    this._buildDeviceEntityMap();
-    this._render();
+    try {
+      this._buildDeviceEntityMap();
+      this._render();
+    } catch (err) {
+      this._renderError("hass", err);
+    }
   }
 
   _render() {

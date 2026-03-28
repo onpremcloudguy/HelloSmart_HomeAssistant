@@ -38,6 +38,9 @@ FRONTEND_CHARGE_JS = "hello-smart-charge-card.js"
 FRONTEND_RESOURCE_URL = f"{FRONTEND_URL}/{FRONTEND_CARD_JS}"
 FRONTEND_CHARGE_URL = f"{FRONTEND_URL}/{FRONTEND_CHARGE_JS}"
 
+# Version from manifest.json for cache-busting
+_FRONTEND_VERSION = "0.4.5"
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: SmartConfigEntry) -> bool:
     """Set up Hello Smart from a config entry."""
@@ -67,8 +70,8 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
     await hass.http.async_register_static_paths(
         [StaticPathConfig(FRONTEND_URL, str(frontend_dir), cache_headers=False)]
     )
-    add_extra_js_url(hass, FRONTEND_RESOURCE_URL)
-    add_extra_js_url(hass, FRONTEND_CHARGE_URL)
+    add_extra_js_url(hass, f"{FRONTEND_RESOURCE_URL}?v={_FRONTEND_VERSION}")
+    add_extra_js_url(hass, f"{FRONTEND_CHARGE_URL}?v={_FRONTEND_VERSION}")
 
     hass.data[f"{DOMAIN}_frontend_registered"] = True
 

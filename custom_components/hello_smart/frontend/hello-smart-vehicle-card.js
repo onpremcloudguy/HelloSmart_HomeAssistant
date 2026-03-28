@@ -18,7 +18,7 @@
  *   show_locks: true                                  # show lock status row (default: true)
  */
 
-const CARD_VERSION = "1.2.0";
+const CARD_VERSION = "1.2.1";
 
 /* eslint-disable no-console */
 console.info(
@@ -104,7 +104,11 @@ class HelloSmartVehicleCard extends HTMLElement {
       ...config,
     };
     // Auto-detect will happen in the hass setter when hass is available
-    this._render();
+    try {
+      this._render();
+    } catch (err) {
+      this._renderError("setConfig", err);
+    }
   }
 
   /**
@@ -283,6 +287,20 @@ class HelloSmartVehicleCard extends HTMLElement {
     return "";
   }
 
+  _renderError(phase, err) {
+    console.error(`[hello-smart-vehicle-card] Error in ${phase}:`, err);
+    if (this.shadowRoot) {
+      this.shadowRoot.innerHTML = `
+        <ha-card>
+          <div style="padding: 16px; color: var(--error-color, #db4437);">
+            <b>Hello Smart Vehicle Card Error</b>
+            <p style="font-size: 13px; margin: 8px 0 0;">${phase}: ${String(err.message || err)}</p>
+            <p style="font-size: 11px; color: var(--secondary-text-color); margin: 4px 0 0;">v${CARD_VERSION} | entity: ${this._config.entity || 'none'} | keys: ${Object.keys(this._keyMap).length}</p>
+          </div>
+        </ha-card>`;
+    }
+  }
+
   set hass(hass) {
     this._hass = hass;
     // Auto-detect entity if not set
@@ -290,8 +308,12 @@ class HelloSmartVehicleCard extends HTMLElement {
       const detected = HelloSmartVehicleCard._autoDetectEntity(hass);
       if (detected) this._config.entity = detected;
     }
-    this._buildDeviceEntityMap();
-    this._render();
+    try {
+      this._buildDeviceEntityMap();
+      this._render();
+    } catch (err) {
+      this._renderError("hass", err);
+    }
   }
 
   _render() {
